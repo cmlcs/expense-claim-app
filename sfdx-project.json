@@ -1,0 +1,14 @@
+{
+  "packageDirectories": [
+    {
+      "path": "force-app",
+      "default": true,
+      "versionName": "Expense Claim 0.1",
+      "versionNumber": "0.1.0.NEXT"
+    }
+  ],
+  "name": "expense-claim-app",
+  "namespace": "",
+  "sfdcLoginUrl": "https://login.salesforce.com",
+  "sourceApiVersion": "67.0"
+}
