@@ -1,0 +1,59 @@
+name: Promote 2GP Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_version_id:
+        description: "Subscriber Package Version ID (04t...)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    name: Promote Managed Package
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Salesforce CLI
+        run: npm install --global @salesforce/cli@latest
+
+      - name: Authenticate Dev Hub
+        run: |
+          printf '%s' "${{ secrets.DEVHUB_SFDX_URL }}" \
+            | sf org login sfdx-url \
+                --sfdx-url-stdin \
+                --alias DevHub \
+                --set-default-dev-hub
+
+      - name: Validate package version ID
+        shell: bash
+        run: |
+          if [[ ! "${{ inputs.package_version_id }}" =~ ^04t ]]; then
+            echo "Package version ID must start with 04t."
+            exit 1
+          fi
+
+      - name: Review package version
+        run: |
+          sf package version report \
+            --package "${{ inputs.package_version_id }}" \
+            --target-dev-hub DevHub
+
+      - name: Promote package version
+        run: |
+          sf package version promote \
+            --package "${{ inputs.package_version_id }}" \
+            --no-prompt \
+            --target-dev-hub DevHub
