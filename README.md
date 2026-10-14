@@ -1,58 +1,305 @@
-# Salesforce DX Project
+# Expense Claim App for Salesforce
 
-Salesforce DX is a development approach that brings source-driven development, team collaboration, and continuous integration to the Salesforce Platform. Instead of working directly in an org through a web browser, you work with metadata as source files in a local DX project, track changes in version control, and deploy through automated processes.
+An open-source Salesforce application for submitting, reviewing, and managing expense claims.
 
-This project template gets you started with the tools and structure you need to build Salesforce applications using source control, scratch orgs, and the Salesforce CLI.
+The project is being developed as a **Salesforce second-generation managed package (2GP)** using Salesforce DX, GitHub, and automated CI/CD workflows.
+
+> **Project status:** Early development.  
+> The package is not yet ready for production use.
+
+## Overview
+
+The goal of the Expense Claim App is to provide Salesforce customers with a reusable and configurable expense-management solution that can be installed as a managed package.
+
+The application is intended to support use cases such as:
+
+- Employee and volunteer expense claims
+- Mileage reimbursements
+- Reimbursement of purchases and other expenses
+- Receipt and supporting-document uploads
+- Configurable expense categories and reimbursement rules
+- Approval processes
+- Expense review and administration
+- Reporting and auditability
+
+The design principle is to keep organisation-specific policies configurable while keeping the underlying application reusable.
+
+## Technology
+
+The project uses:
+
+- Salesforce DX
+- Second-Generation Managed Packaging (2GP)
+- Salesforce CLI (`sf`)
+- Lightning Web Components
+- Apex
+- Salesforce Flow
+- Custom Metadata Types
+- Permission Sets
+- GitHub
+- GitHub Actions
+- Salesforce Code Analyzer
+
+CumulusCI may also be used for project automation as the development lifecycle becomes more complex.
+
+## Repository Structure
+
+```text
+expense-claim-app/
+│
+├── .github/
+│   └── workflows/          GitHub Actions workflows
+│
+├── config/
+│   └── project-scratch-def.json
+│                          Scratch-org configuration
+│
+├── docs/                  Architecture and project documentation
+│
+├── force-app/
+│   └── main/
+│       └── default/       Salesforce package metadata
+│
+├── scripts/               Development and setup scripts
+│
+├── .forceignore
+├── .gitignore
+├── LICENSE
+├── README.md
+└── sfdx-project.json
+```
+
+The contents of `force-app` form the Salesforce application source and will ultimately be included in the managed package.
+
+## Development Model
+
+Development follows a source-driven workflow.
+
+```text
+Feature branch
+      │
+      ▼
+Pull Request
+      │
+      ├── Static analysis
+      ├── Automated tests
+      └── Salesforce validation
+      │
+      ▼
+     main
+      │
+      ▼
+2GP package version
+      │
+      ▼
+Installation testing
+      │
+      ▼
+Released package
+```
+
+The `main` branch represents the current accepted source.
+
+Changes should normally be made in short-lived branches such as:
+
+```text
+feature/expense-object
+feature/mileage-calculation
+fix/duplicate-claim
+docs/architecture
+```
+
+and merged through Pull Requests.
 
 ## Prerequisites
 
-Before you start, make sure you have:
+For local development you need:
 
-- **Salesforce CLI** - Download from [developer.salesforce.com/tools/salesforcecli](https://developer.salesforce.com/tools/salesforcecli). See [Install Salesforce CLI](https://developer.salesforce.com/docs/atlas.en-us.sfdx_setup.meta/sfdx_setup/sfdx_setup_install_cli.htm) for details.
-- **VS Code with Salesforce Extension Pack** - See [Installation Instructions](https://developer.salesforce.com/docs/platform/sfvscode-extensions/guide/install.html) for details. Includes the Agentforce Vibes extension.
-- **A development org** - Sign up for a free Developer Edition org [here](https://developer.salesforce.com/signup).
-- **Dev Hub enabled** (optional, required to create scratch orgs) - You can enable Dev Hub in your development org under Setup > Dev Hub.  See [Provide Developers Access to Salesforce DX Tools](https://developer.salesforce.com/docs/atlas.en-us.sfdx_dev.meta/sfdx_dev/sfdx_setup_dx_tools.htm).
+- Git
+- Salesforce CLI
+- VS Code
+- Salesforce Extension Pack for VS Code
+- Access to a Salesforce Dev Hub
+- Permission to create scratch orgs
 
-## Project Structure
+Verify the main tools with:
 
-Your DX project follows this structure:
+```bash
+git --version
+sf --version
+```
 
-- **`force-app/main/default/`** - Your metadata source files live in this default package directory. You can configure additional package directories in the `sfdx-project.json` file.
-- **`config/`** - Scratch org definitions and project settings
-- **`scripts/`** - Automation scripts for common tasks
-- **`sfdx-project.json`** - Project manifest that defines package directories, namespace, API version, and other project-level settings
+## Clone the Repository
 
-See [Salesforce DX Project Configuration](https://developer.salesforce.com/docs/atlas.en-us.sfdx_dev.meta/sfdx_dev/sfdx_dev_ws_config.htm).
+Using SSH:
 
-## Get Started
+```bash
+git clone git@github.com:cmlcs/expense-claim-app.git
+cd expense-claim-app
+```
 
-Ready to start developing? The [Get Started with Salesforce DX](https://developer.salesforce.com/docs/atlas.en-us.sfdx_dev.meta/sfdx_dev/sfdx_dev_get_started_dx.htm) guide walks you through your first project, from creating a scratch org to creating a simple Apex class or LWC to deploying your code to a sandbox.
+## Authenticate Your Dev Hub
 
-## Common Salesforce CLI Commands
+Authenticate the Salesforce org that acts as your Dev Hub:
 
-Here are common CLI commands that you'll use the most:
+```bash
+sf org login web \
+  --alias DevHub \
+  --set-default-dev-hub
+```
 
-- `sf org login web`: Authorize an org
-- `sf org open`: Open your org in a browser
-- `sf org create scratch`: Create a scratch org
-- `sf project deploy start`: Deploy metadata to your org
-- `sf project retrieve start`: Retrieve metadata from your org
-- `sf template generate <artifact>`: Scaffold new components, such as Apex classes and triggers, LWC components, Lightning apps, and more
-- `sf apex <command>`: Run Apex tests, run anonymous Apex blocks, and view logs
-- `sf data <command>`: Work with test data
-- `sf alias <command>`: Manage org aliases
-- `sf config <command>`: Configure CLI settings
+Verify the connection:
 
-## Use Agentforce Vibes to Build Lightning Apps
+```bash
+sf org display --target-org DevHub
+```
 
-Transform your ideas into custom Lightning apps that extend CRM workflows directly in Lightning Experience. Through natural conversations with Agentforce Vibes, implement custom objects and fields, complex business logic, and dynamic UI components. See [Build a Lightning App Using Agentforce Vibes](https://developer.salesforce.com/docs/platform/einstein-for-devs/guide/lexapp-overview.html).
+## Create a Development Scratch Org
 
-## Additional Resources
+Create a scratch org using the configuration stored in this repository:
 
-- [Agentforce Vibes Developer Guide](https://developer.salesforce.com/docs/platform/einstein-for-devs/guide/einstein-overview.html)
-- [Salesforce CLI Installation Guide](https://developer.salesforce.com/docs/atlas.en-us.sfdx_setup.meta/sfdx_setup/sfdx_setup_intro.htm)
-- [Salesforce DX Developer Guide](https://developer.salesforce.com/docs/atlas.en-us.sfdx_dev.meta/sfdx_dev/)
-- [Salesforce CLI Command Reference](https://developer.salesforce.com/docs/atlas.en-us.sfdx_cli_reference.meta/sfdx_cli_reference/)
-- [Salesforce CLI Plugin Development Guide](https://developer.salesforce.com/docs/platform/salesforce-cli-plugin/guide/conceptual-overview.html)
-- [Salesforce VS Code Extensions Documentation](https://developer.salesforce.com/tools/vscode/)
+```bash
+sf org create scratch \
+  --definition-file config/project-scratch-def.json \
+  --alias ExpenseDev \
+  --set-default \
+  --duration-days 7
+```
 
+Open the org:
+
+```bash
+sf org open --target-org ExpenseDev
+```
+
+## Deploy the Source
+
+Deploy the current application source:
+
+```bash
+sf project deploy start \
+  --source-dir force-app \
+  --target-org ExpenseDev
+```
+
+As the project evolves, setup scripts and automation may replace some of these manual steps.
+
+## Run Tests
+
+Apex tests can be run with:
+
+```bash
+sf apex run test \
+  --test-level RunLocalTests \
+  --target-org ExpenseDev \
+  --wait 20
+```
+
+Lightning Web Component tests and additional quality checks will be added as those components are introduced.
+
+## Static Analysis
+
+The project uses Salesforce Code Analyzer as part of its quality checks.
+
+Run it locally with:
+
+```bash
+sf code-analyzer run \
+  --workspace force-app \
+  --severity-threshold 3
+```
+
+The same analysis is intended to run automatically for Pull Requests through GitHub Actions.
+
+## Managed Package
+
+The project is intended to be distributed as a **Salesforce second-generation managed package (2GP)**.
+
+The managed-package lifecycle will be:
+
+```text
+Source in GitHub
+      ↓
+Managed 2GP beta
+      ↓
+Install in clean test org
+      ↓
+Automated and manual validation
+      ↓
+Promote tested package version
+      ↓
+Released managed package
+```
+
+The Salesforce namespace, package ID, installation instructions, and release information will be added once the initial managed package has been created.
+
+## Configuration Philosophy
+
+Organisation-specific expense policies should be configurable wherever practical rather than hard-coded.
+
+Examples include:
+
+- Expense categories
+- Mileage rates
+- Reimbursement limits
+- Approval thresholds
+- Enabled expense types
+- Business rules
+
+Custom Metadata Types and other Salesforce configuration mechanisms will be preferred where appropriate.
+
+## Contributing
+
+Contributions are welcome.
+
+For now, use the following workflow:
+
+```bash
+git checkout main
+git pull
+
+git checkout -b feature/my-change
+
+# make your changes
+
+git add .
+git commit -m "feat: describe the change"
+git push -u origin feature/my-change
+```
+
+Then create a Pull Request into `main`.
+
+More detailed contribution guidelines will be added to `CONTRIBUTING.md` as the project matures.
+
+## Documentation
+
+Project documentation will live under:
+
+```text
+docs/
+├── architecture/
+├── configuration/
+└── contributing/
+```
+
+Architecture decisions that materially affect the package should be documented alongside the source.
+
+## Roadmap
+
+Initial development will focus on establishing the technical foundation before implementing the full expense-management functionality.
+
+Current priorities include establishing the Dev Hub and namespace, creating the first managed 2GP package, validating scratch-org development, creating the CI/CD pipeline, and proving package installation in a clean Salesforce org.
+
+Feature development will follow once the packaging and deployment lifecycle is working reliably.
+
+## Security
+
+Do not commit Salesforce credentials, SFDX authentication URLs, private keys, access tokens, or other secrets to this repository.
+
+Secrets required by CI/CD should be stored using GitHub Actions secrets or another appropriate secret-management mechanism.
+
+## License
+
+This project is licensed under the **Apache License 2.0**.
+
+See [LICENSE](LICENSE) for details.
