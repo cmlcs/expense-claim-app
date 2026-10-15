@@ -1,14 +1,19 @@
 {
   "packageDirectories": [
     {
+      "versionName": "Expense Claim 0.1",
+      "versionNumber": "0.1.0.NEXT",
       "path": "force-app",
       "default": true,
-      "versionName": "Expense Claim 0.1",
-      "versionNumber": "0.1.0.NEXT"
+      "package": "Expense Claim",
+      "versionDescription": "Open-source Salesforce expense claim management application"
     }
   ],
   "name": "expense-claim-app",
-  "namespace": "",
+  "namespace": "cmlcs",
   "sfdcLoginUrl": "https://login.salesforce.com",
-  "sourceApiVersion": "67.0"
+  "sourceApiVersion": "68.0",
+  "packageAliases": {
+    "Expense Claim": "0Hoa300004nqAQ0CAM"
+  }
 }
