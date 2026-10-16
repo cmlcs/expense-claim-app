@@ -8,8 +8,9 @@ permissions:
 
 jobs:
   build-package:
-    name: Build Managed Package
+    name: Build and Test Managed Package
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repository
@@ -23,6 +24,9 @@ jobs:
       - name: Install Salesforce CLI
         run: npm install --global @salesforce/cli@latest
 
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
       - name: Authenticate Dev Hub
         env:
           DEVHUB_SFDX_URL: ${{ secrets.DEVHUB_SFDX_URL }}
@@ -34,3 +38,167 @@ jobs:
 
       - name: Verify Dev Hub
         run: sf org display --target-org DevHub
+
+      - name: Create package version request
+        id: package-create
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sf package version create \
+            --package "Expense Claim" \
+            --definition-file config/project-scratch-def.json \
+            --installation-key-bypass \
+            --code-coverage \
+            --branch "$GITHUB_REF_NAME" \
+            --tag "$GITHUB_SHA" \
+            --target-dev-hub DevHub \
+            --json > package-create.json
+
+          cat package-create.json
+
+          REQUEST_ID=$(jq -r '.result.Id' package-create.json)
+
+          if [[ ! "$REQUEST_ID" =~ ^08c ]]; then
+            echo "Expected a package creation request ID starting with 08c."
+            exit 1
+          fi
+
+          echo "request_id=$REQUEST_ID" >> "$GITHUB_OUTPUT"
+          echo "Package creation request: $REQUEST_ID"
+
+      - name: Wait for package version
+        id: package-version
+        shell: bash
+        env:
+          REQUEST_ID: ${{ steps.package-create.outputs.request_id }}
+        run: |
+          set -euo pipefail
+
+          for attempt in {1..60}; do
+
+            sf package version create report \
+              --package-create-request-id "$REQUEST_ID" \
+              --target-dev-hub DevHub \
+              --json > package-report.json
+
+            STATUS=$(jq -r '
+              if (.result | type) == "array"
+              then .result[0].Status
+              else .result.Status
+              end
+            ' package-report.json)
+
+            echo "Package creation status: $STATUS"
+
+            if [[ "$STATUS" == "Success" ]]; then
+
+              PACKAGE_VERSION_ID=$(jq -r '
+                if (.result | type) == "array"
+                then .result[0].SubscriberPackageVersionId
+                else .result.SubscriberPackageVersionId
+                end
+              ' package-report.json)
+
+              if [[ ! "$PACKAGE_VERSION_ID" =~ ^04t ]]; then
+                echo "Expected Subscriber Package Version ID starting with 04t."
+                cat package-report.json
+                exit 1
+              fi
+
+              echo "package_version_id=$PACKAGE_VERSION_ID" >> "$GITHUB_OUTPUT"
+              echo "Created package version: $PACKAGE_VERSION_ID"
+
+              exit 0
+            fi
+
+            if [[ "$STATUS" == "Error" ]]; then
+              echo "Package version creation failed."
+              cat package-report.json
+              exit 1
+            fi
+
+            sleep 30
+          done
+
+          echo "Timed out waiting for package version creation."
+          exit 1
+
+      - name: Display package version
+        env:
+          PACKAGE_VERSION_ID: ${{ steps.package-version.outputs.package_version_id }}
+        run: |
+          sf package version report \
+            --package "$PACKAGE_VERSION_ID" \
+            --target-dev-hub DevHub
+
+      - name: Create clean installation test org
+        run: |
+          sf org create scratch \
+            --definition-file config/project-scratch-def.json \
+            --alias ExpenseInstallTest \
+            --no-namespace \
+            --no-track-source \
+            --duration-days 1 \
+            --target-dev-hub DevHub \
+            --wait 15
+
+      - name: Install package
+        env:
+          PACKAGE_VERSION_ID: ${{ steps.package-version.outputs.package_version_id }}
+        run: |
+          sf package install \
+            --package "$PACKAGE_VERSION_ID" \
+            --target-org ExpenseInstallTest \
+            --publish-wait 15 \
+            --wait 30 \
+            --no-prompt
+
+      - name: Verify installed package
+        run: |
+          sf package installed list \
+            --target-org ExpenseInstallTest
+
+      - name: Assign Expense Claim User permission set
+        run: |
+          sf org assign permset \
+            --name Expense_Claim_User \
+            --target-org ExpenseInstallTest
+
+      - name: Run Apex tests
+        shell: bash
+        run: |
+          if grep -R -q "@IsTest\|@isTest" force-app/main/default/classes 2>/dev/null; then
+            sf apex run test \
+              --test-level RunLocalTests \
+              --target-org ExpenseInstallTest \
+              --wait 20 \
+              --result-format human \
+              --code-coverage
+          else
+            echo "No Apex test classes found yet. Skipping Apex tests."
+          fi
+
+      - name: Add build summary
+        if: success()
+        env:
+          PACKAGE_VERSION_ID: ${{ steps.package-version.outputs.package_version_id }}
+        run: |
+          {
+            echo "## Expense Claim package build"
+            echo ""
+            echo "Build succeeded."
+            echo ""
+            echo "- Package version: \`$PACKAGE_VERSION_ID\`"
+            echo "- Source branch: \`$GITHUB_REF_NAME\`"
+            echo "- Commit: \`$GITHUB_SHA\`"
+            echo "- Installation test: passed"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Delete installation test org
+        if: always()
+        continue-on-error: true
+        run: |
+          sf org delete scratch \
+            --target-org ExpenseInstallTest \
+            --no-prompt
