@@ -4,22 +4,50 @@ on:
   workflow_dispatch:
     inputs:
       package_version_id:
-        description: "Subscriber Package Version ID (04t...)"
+        description: "Tested Subscriber Package Version ID (04t...)"
         required: true
         type: string
 
 permissions:
   contents: read
 
+concurrency:
+  group: production-package-release
+  cancel-in-progress: false
+
 jobs:
-  promote:
-    name: Promote Managed Package
+  validate:
+    name: Validate Package Version
     runs-on: ubuntu-latest
-    environment: production
+
+    outputs:
+      package_version_id: ${{ steps.validate-id.outputs.package_version_id }}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
+      - name: Require main branch
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "Releases must be initiated from the main branch."
+            echo "Current ref: $GITHUB_REF"
+            exit 1
+          fi
+
+      - name: Validate package version ID
+        id: validate-id
+        shell: bash
+        env:
+          PACKAGE_VERSION_ID: ${{ inputs.package_version_id }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$PACKAGE_VERSION_ID" =~ ^04t[A-Za-z0-9]+$ ]]; then
+            echo "Invalid package version ID."
+            echo "Expected a Salesforce Subscriber Package Version ID starting with 04t."
+            exit 1
+          fi
+
+          echo "package_version_id=$PACKAGE_VERSION_ID" >> "$GITHUB_OUTPUT"
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -30,30 +58,102 @@ jobs:
         run: npm install --global @salesforce/cli@latest
 
       - name: Authenticate Dev Hub
+        env:
+          DEVHUB_SFDX_URL: ${{ secrets.DEVHUB_SFDX_URL }}
         run: |
-          printf '%s' "${{ secrets.DEVHUB_SFDX_URL }}" \
-            | sf org login sfdx-url \
-                --sfdx-url-stdin \
-                --alias DevHub \
-                --set-default-dev-hub
+          printf '%s' "$DEVHUB_SFDX_URL" | sf org login sfdx-url \
+            --alias DevHub \
+            --set-default-dev-hub \
+            --sfdx-url-stdin
 
-      - name: Validate package version ID
-        shell: bash
+      - name: Inspect package version
+        env:
+          PACKAGE_VERSION_ID: ${{ steps.validate-id.outputs.package_version_id }}
         run: |
-          if [[ ! "${{ inputs.package_version_id }}" =~ ^04t ]]; then
-            echo "Package version ID must start with 04t."
-            exit 1
-          fi
+          echo "Package version proposed for release:"
+          sf package version report \
+            --package "$PACKAGE_VERSION_ID" \
+            --target-dev-hub DevHub \
+            --verbose
 
-      - name: Review package version
+      - name: Add validation summary
+        env:
+          PACKAGE_VERSION_ID: ${{ steps.validate-id.outputs.package_version_id }}
+        run: |
+          {
+            echo "## Package release candidate"
+            echo ""
+            echo "- Package version: \`$PACKAGE_VERSION_ID\`"
+            echo "- Requested from branch: \`$GITHUB_REF_NAME\`"
+            echo "- Workflow commit: \`$GITHUB_SHA\`"
+            echo ""
+            echo "The package version was found in the configured Dev Hub."
+            echo "Promotion requires the production deployment job to proceed."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  promote:
+    name: Promote to Released
+    needs: validate
+    runs-on: ubuntu-latest
+
+    environment:
+      name: production
+
+    steps:
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Salesforce CLI
+        run: npm install --global @salesforce/cli@latest
+
+      - name: Authenticate Dev Hub
+        env:
+          DEVHUB_SFDX_URL: ${{ secrets.DEVHUB_SFDX_URL }}
+        run: |
+          printf '%s' "$DEVHUB_SFDX_URL" | sf org login sfdx-url \
+            --alias DevHub \
+            --set-default-dev-hub \
+            --sfdx-url-stdin
+
+      - name: Final package review
+        env:
+          PACKAGE_VERSION_ID: ${{ needs.validate.outputs.package_version_id }}
         run: |
           sf package version report \
-            --package "${{ inputs.package_version_id }}" \
-            --target-dev-hub DevHub
+            --package "$PACKAGE_VERSION_ID" \
+            --target-dev-hub DevHub \
+            --verbose
 
       - name: Promote package version
+        env:
+          PACKAGE_VERSION_ID: ${{ needs.validate.outputs.package_version_id }}
         run: |
           sf package version promote \
-            --package "${{ inputs.package_version_id }}" \
-            --no-prompt \
-            --target-dev-hub DevHub
+            --package "$PACKAGE_VERSION_ID" \
+            --target-dev-hub DevHub \
+            --no-prompt
+
+      - name: Verify released package
+        env:
+          PACKAGE_VERSION_ID: ${{ needs.validate.outputs.package_version_id }}
+        run: |
+          sf package version report \
+            --package "$PACKAGE_VERSION_ID" \
+            --target-dev-hub DevHub \
+            --verbose
+
+      - name: Add release summary
+        env:
+          PACKAGE_VERSION_ID: ${{ needs.validate.outputs.package_version_id }}
+        run: |
+          {
+            echo "## Expense Claim release"
+            echo ""
+            echo "Package promotion succeeded."
+            echo ""
+            echo "- Subscriber Package Version: \`$PACKAGE_VERSION_ID\`"
+            echo "- Status: Released"
+            echo "- Workflow source: \`$GITHUB_SHA\`"
+          } >> "$GITHUB_STEP_SUMMARY"
