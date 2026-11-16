@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Require_Description__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Determines whether descriptions are required for all expense items regardless of expense type.</description>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <label>Require Description</label>
+    <type>Checkbox</type>
+</CustomField>

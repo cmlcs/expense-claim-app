@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata
+    xmlns="http://soap.sforce.com/2006/04/metadata"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <description>Default application-wide configuration for the Expense Claim app.</description>
+    <label>Default</label>
+    <protected>false</protected>
+
+    <values>
+        <field>Default_Distance_Unit__c</field>
+        <value xsi:type="xsd:string">Kilometres</value>
+    </values>
+
+    <values>
+        <field>Allow_Future_Expense_Dates__c</field>
+        <value xsi:type="xsd:boolean">false</value>
+    </values>
+
+    <values>
+        <field>Require_Description__c</field>
+        <value xsi:type="xsd:boolean">false</value>
+    </values>
+
+    <values>
+        <field>Allow_Edit_After_Submission__c</field>
+        <value xsi:type="xsd:boolean">false</value>
+    </values>
+</CustomMetadata>
