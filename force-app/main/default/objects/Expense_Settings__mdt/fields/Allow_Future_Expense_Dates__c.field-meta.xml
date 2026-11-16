@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Allow_Future_Expense_Dates__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Determines whether expense items can have dates in the future.</description>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <label>Allow Future Expense Dates</label>
+    <type>Checkbox</type>
+</CustomField>

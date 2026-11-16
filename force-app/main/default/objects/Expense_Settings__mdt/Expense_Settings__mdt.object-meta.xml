@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Defines application-wide defaults and policy settings for the Expense Claim application.</description>
+    <label>Expense Settings</label>
+    <pluralLabel>Expense Settings</pluralLabel>
+    <visibility>Public</visibility>
+</CustomObject>

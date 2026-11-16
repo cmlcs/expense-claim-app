@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Receipt_Required__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Determines whether a receipt is required for this expense type.</description>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <label>Receipt Required</label>
+    <type>Checkbox</type>
+</CustomField>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Allow_Edit_After_Submission__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Determines whether a claimant may modify a claim after it has been submitted.</description>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <label>Allow Edit After Submission</label>
+    <type>Checkbox</type>
+</CustomField>
