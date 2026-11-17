@@ -6,20 +6,35 @@ public inherited sharing class ExpenseTypeRepository {
     /**
      * Returns active Expense Types ordered by Sort Order.
      *
-     * Custom Metadata static accessors are used rather than SOQL so policy
-     * configuration can be read without depending on the running user's
-     * Custom Metadata Type permissions.
-     *
      * @return Active Expense Types in configured display order.
      */
     public static List<Expense_Type__mdt> getActiveExpenseTypes() {
+        return filterAndSort(
+            Expense_Type__mdt.getAll().values()
+        );
+    }
+
+    /**
+     * Filters inactive Expense Types and applies configured ordering.
+     *
+     * Exposed to tests so repository behavior can be tested without
+     * depending on mutable subscriber configuration.
+     *
+     * @param expenseTypes Expense Types to process.
+     * @return Active Expense Types in configured display order.
+     */
+    @TestVisible
+    private static List<Expense_Type__mdt> filterAndSort(
+        List<Expense_Type__mdt> expenseTypes
+    ) {
         List<Expense_Type__mdt> activeTypes =
             new List<Expense_Type__mdt>();
 
-        for (
-            Expense_Type__mdt expenseType :
-            Expense_Type__mdt.getAll().values()
-        ) {
+        if (expenseTypes == null) {
+            return activeTypes;
+        }
+
+        for (Expense_Type__mdt expenseType : expenseTypes) {
             if (expenseType.Active__c == true) {
                 activeTypes.add(expenseType);
             }
@@ -31,7 +46,7 @@ public inherited sharing class ExpenseTypeRepository {
     }
 
     /**
-     * Sorts Expense Types by their configured Sort Order.
+     * Sorts Expense Types by configured Sort Order.
      *
      * @param expenseTypes Expense Types to sort.
      */
@@ -39,12 +54,18 @@ public inherited sharing class ExpenseTypeRepository {
         List<Expense_Type__mdt> expenseTypes
     ) {
         for (Integer i = 1; i < expenseTypes.size(); i++) {
-            Expense_Type__mdt current = expenseTypes[i];
-            Integer position = i - 1;
+            Expense_Type__mdt current =
+                expenseTypes[i];
+
+            Integer position =
+                i - 1;
 
             while (
                 position >= 0 &&
-                comesBefore(current, expenseTypes[position])
+                comesBefore(
+                    current,
+                    expenseTypes[position]
+                )
             ) {
                 expenseTypes[position + 1] =
                     expenseTypes[position];
@@ -52,7 +73,8 @@ public inherited sharing class ExpenseTypeRepository {
                 position--;
             }
 
-            expenseTypes[position + 1] = current;
+            expenseTypes[position + 1] =
+                current;
         }
     }
 
@@ -67,8 +89,11 @@ public inherited sharing class ExpenseTypeRepository {
         Expense_Type__mdt left,
         Expense_Type__mdt right
     ) {
-        Decimal leftOrder = sortValue(left);
-        Decimal rightOrder = sortValue(right);
+        Decimal leftOrder =
+            sortValue(left);
+
+        Decimal rightOrder =
+            sortValue(right);
 
         if (leftOrder != rightOrder) {
             return leftOrder < rightOrder;
@@ -102,9 +127,10 @@ public inherited sharing class ExpenseTypeRepository {
     private static String sortName(
         Expense_Type__mdt expenseType
     ) {
-        String value = String.isBlank(expenseType.MasterLabel)
-            ? expenseType.DeveloperName
-            : expenseType.MasterLabel;
+        String value =
+            String.isBlank(expenseType.MasterLabel)
+                ? expenseType.DeveloperName
+                : expenseType.MasterLabel;
 
         return value.toLowerCase();
     }

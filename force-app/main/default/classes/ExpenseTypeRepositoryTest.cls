@@ -3,14 +3,9 @@
 private class ExpenseTypeRepositoryTest {
 
     @IsTest
-    static void returnsOnlyActiveExpenseTypes() {
+    static void repositoryReturnsConfiguredActiveTypes() {
         List<Expense_Type__mdt> expenseTypes =
             ExpenseTypeRepository.getActiveExpenseTypes();
-
-        System.assert(
-            !expenseTypes.isEmpty(),
-            'Expected active packaged Expense Types.'
-        );
 
         for (
             Expense_Type__mdt expenseType :
@@ -19,76 +14,198 @@ private class ExpenseTypeRepositoryTest {
             System.assertEquals(
                 true,
                 expenseType.Active__c,
-                'Repository must not return inactive Expense Types.'
+                'Repository must only return active Expense Types.'
             );
         }
     }
 
     @IsTest
-    static void returnsExpenseTypesInSortOrder() {
-        List<Expense_Type__mdt> expenseTypes =
-            ExpenseTypeRepository.getActiveExpenseTypes();
-
-        Decimal previousSortOrder = null;
-
-        for (
-            Expense_Type__mdt expenseType :
-            expenseTypes
-        ) {
-            if (
-                previousSortOrder != null &&
-                expenseType.Sort_Order__c != null
-            ) {
-                System.assert(
-                    expenseType.Sort_Order__c >=
-                    previousSortOrder,
-                    'Expense Types must be ordered by Sort Order.'
-                );
-            }
-
-            if (expenseType.Sort_Order__c != null) {
-                previousSortOrder =
-                    expenseType.Sort_Order__c;
-            }
-        }
-    }
-
-    @IsTest
-    static void packagedStarterTypesAreAvailable() {
-        List<Expense_Type__mdt> expenseTypes =
-            ExpenseTypeRepository.getActiveExpenseTypes();
-
-        Set<String> developerNames =
-            new Set<String>();
-
-        for (
-            Expense_Type__mdt expenseType :
-            expenseTypes
-        ) {
-            developerNames.add(
-                expenseType.DeveloperName
+    static void inactiveTypesAreFilteredOut() {
+        Expense_Type__mdt active =
+            ExpensePolicyTestFactory.createAmountType(
+                'ActiveType'
             );
-        }
 
-        System.assert(
-            developerNames.contains('Meals'),
-            'Meals should be an active packaged starter Expense Type.'
-        );
+        Expense_Type__mdt inactive =
+            ExpensePolicyTestFactory.createAmountType(
+                'InactiveType'
+            );
 
-        System.assert(
-            developerNames.contains('Accommodation'),
-            'Accommodation should be an active packaged starter Expense Type.'
-        );
+        inactive.Active__c =
+            false;
 
-        System.assert(
-            developerNames.contains('Taxi'),
-            'Taxi should be an active packaged starter Expense Type.'
+        List<Expense_Type__mdt> results =
+            ExpenseTypeRepository.filterAndSort(
+                new List<Expense_Type__mdt>{
+                    inactive,
+                    active
+                }
+            );
+
+        System.assertEquals(
+            1,
+            results.size()
         );
 
         System.assertEquals(
-            false,
-            developerNames.contains('Mileage'),
-            'Mileage should remain inactive until a subscriber configures a rate.'
+            'ActiveType',
+            results[0].DeveloperName
+        );
+    }
+
+    @IsTest
+    static void typesAreSortedBySortOrder() {
+        Expense_Type__mdt first =
+            ExpensePolicyTestFactory.createAmountType(
+                'First'
+            );
+
+        first.Sort_Order__c =
+            Decimal.valueOf('10');
+
+        Expense_Type__mdt second =
+            ExpensePolicyTestFactory.createAmountType(
+                'Second'
+            );
+
+        second.Sort_Order__c =
+            Decimal.valueOf('20');
+
+        Expense_Type__mdt third =
+            ExpensePolicyTestFactory.createAmountType(
+                'Third'
+            );
+
+        third.Sort_Order__c =
+            Decimal.valueOf('30');
+
+        List<Expense_Type__mdt> results =
+            ExpenseTypeRepository.filterAndSort(
+                new List<Expense_Type__mdt>{
+                    third,
+                    first,
+                    second
+                }
+            );
+
+        System.assertEquals(
+            3,
+            results.size()
+        );
+
+        System.assertEquals(
+            'First',
+            results[0].DeveloperName
+        );
+
+        System.assertEquals(
+            'Second',
+            results[1].DeveloperName
+        );
+
+        System.assertEquals(
+            'Third',
+            results[2].DeveloperName
+        );
+    }
+
+    @IsTest
+    static void nullSortOrderIsPlacedLast() {
+        Expense_Type__mdt sorted =
+            ExpensePolicyTestFactory.createAmountType(
+                'Sorted'
+            );
+
+        sorted.Sort_Order__c =
+            Decimal.valueOf('10');
+
+        Expense_Type__mdt unsorted =
+            ExpensePolicyTestFactory.createAmountType(
+                'Unsorted'
+            );
+
+        unsorted.Sort_Order__c =
+            null;
+
+        List<Expense_Type__mdt> results =
+            ExpenseTypeRepository.filterAndSort(
+                new List<Expense_Type__mdt>{
+                    unsorted,
+                    sorted
+                }
+            );
+
+        System.assertEquals(
+            'Sorted',
+            results[0].DeveloperName
+        );
+
+        System.assertEquals(
+            'Unsorted',
+            results[1].DeveloperName
+        );
+    }
+
+    @IsTest
+    static void equalSortOrderUsesNameAsTieBreaker() {
+        Expense_Type__mdt beta =
+            ExpensePolicyTestFactory.createAmountType(
+                'Beta'
+            );
+
+        beta.Sort_Order__c =
+            Decimal.valueOf('10');
+
+        Expense_Type__mdt alpha =
+            ExpensePolicyTestFactory.createAmountType(
+                'Alpha'
+            );
+
+        alpha.Sort_Order__c =
+            Decimal.valueOf('10');
+
+        List<Expense_Type__mdt> results =
+            ExpenseTypeRepository.filterAndSort(
+                new List<Expense_Type__mdt>{
+                    beta,
+                    alpha
+                }
+            );
+
+        System.assertEquals(
+            'Alpha',
+            results[0].DeveloperName
+        );
+
+        System.assertEquals(
+            'Beta',
+            results[1].DeveloperName
+        );
+    }
+
+    @IsTest
+    static void emptyConfigurationReturnsEmptyList() {
+        List<Expense_Type__mdt> results =
+            ExpenseTypeRepository.filterAndSort(
+                new List<Expense_Type__mdt>()
+            );
+
+        System.assertEquals(
+            0,
+            results.size()
+        );
+    }
+
+    @IsTest
+    static void nullConfigurationReturnsEmptyList() {
+        List<Expense_Type__mdt> results =
+            ExpenseTypeRepository.filterAndSort(
+                null
+            );
+
+        System.assertEquals(
+            0,
+            results.size()
         );
     }
 }
