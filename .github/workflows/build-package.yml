@@ -165,18 +165,29 @@ jobs:
             --name Expense_Claim_User \
             --target-org ExpenseInstallTest
 
-      - name: Run Apex tests
+      - name: Verify package code coverage
         shell: bash
+        env:
+          PACKAGE_VERSION_ID: ${{ steps.package-version.outputs.package_version_id }}
         run: |
-          if grep -R -q "@IsTest\|@isTest" force-app/main/default/classes 2>/dev/null; then
-            sf apex run test \
-              --test-level RunLocalTests \
-              --target-org ExpenseInstallTest \
-              --wait 20 \
-              --result-format human \
-              --code-coverage
-          else
-            echo "No Apex test classes found yet. Skipping Apex tests."
+          set -euo pipefail
+
+          sf package version report \
+            --package "$PACKAGE_VERSION_ID" \
+            --target-dev-hub DevHub \
+            --json > package-version-report.json
+
+          cat package-version-report.json
+
+          PASSED=$(jq -r '.result.HasPassedCodeCoverageCheck // false' package-version-report.json)
+          COVERAGE=$(jq -r '.result.CodeCoverage // "unknown"' package-version-report.json)
+
+          echo "Package code coverage: $COVERAGE"
+          echo "Passed code coverage check: $PASSED"
+
+          if [[ "$PASSED" != "true" ]]; then
+            echo "Package version did not meet the required 75% code coverage."
+            exit 1
           fi
 
       - name: Add build summary
