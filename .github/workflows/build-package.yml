@@ -154,7 +154,7 @@ jobs:
           ' package-version-report.json)
 
           COVERAGE=$(jq -r '
-            .result.CodeCoverage // "unknown"
+            .result.CodeCoverage.apexCodeCoveragePercentage // "unknown"
           ' package-version-report.json)
 
           echo "Package code coverage: $COVERAGE"
