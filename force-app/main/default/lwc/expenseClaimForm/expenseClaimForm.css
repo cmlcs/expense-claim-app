@@ -1,0 +1,43 @@
+:host {
+    display: block;
+}
+
+.form-container {
+    margin: 0 auto;
+}
+
+.loading-container,
+.submission-spinner {
+    position: relative;
+    padding-block: var(--slds-g-spacing-6, 2rem);
+}
+
+.claimant-panel,
+.expense-item {
+    border:
+        var(--slds-g-sizing-border-1, 1px)
+        solid
+        var(--slds-g-color-border-1, #e5e5e5);
+    border-radius: var(--slds-g-radius-border-1, 0.125rem);
+}
+
+.section-header,
+.item-header,
+.form-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--slds-g-spacing-4, 1rem);
+    flex-wrap: wrap;
+}
+
+.form-actions {
+    justify-content: flex-end;
+}
+
+.success-panel {
+    text-align: center;
+    padding:
+        var(--slds-g-spacing-6, 2rem)
+        var(--slds-g-spacing-4, 1rem);
+}
