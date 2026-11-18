@@ -6,7 +6,13 @@
       "path": "force-app",
       "default": true,
       "package": "Expense Claim",
-      "versionDescription": "Open-source Salesforce expense claim management application"
+      "versionDescription": "Open-source Salesforce expense claim management application",
+      "apexTestAccess": {
+        "permissionSets": [
+          "Expense_Claim_User"
+        ],
+        "permissionSetLicenses": []
+      }
     }
   ],
   "name": "expense-claim-app",
