@@ -32,44 +32,104 @@ export default class ExpenseClaimForm extends LightningElement {
         this.loadError = undefined;
 
         try {
-            this.configuration = await getConfiguration();
+            this.configuration =
+                await getConfiguration();
 
             this.items = this.normalizeItems([
                 this.createEmptyItem()
             ]);
         } catch (error) {
-            this.loadError = this.reduceError(error);
+            this.loadError =
+                this.reduceError(error);
         } finally {
             this.isLoading = false;
         }
     }
 
     get claimantName() {
-        return this.configuration?.claimantName || '';
+        return (
+            this.configuration
+                ?.claimantName || ''
+        );
     }
 
     get claimantEmail() {
-        return this.configuration?.claimantEmail || '';
+        return (
+            this.configuration
+                ?.claimantEmail || ''
+        );
     }
 
     get expenseTypeOptions() {
-        return (this.configuration?.expenseTypes || []).map(
-            (expenseType) => ({
-                label: expenseType.label,
-                value: expenseType.developerName
-            })
+        return (
+            this.configuration
+                ?.expenseTypes || []
+        ).map((expenseType) => ({
+            label: expenseType.label,
+            value:
+                expenseType.developerName
+        }));
+    }
+
+    get claimTotal() {
+        return this.items.reduce(
+            (total, item) =>
+                total +
+                this.toFiniteNumber(
+                    item.claimedAmount
+                ),
+            0
+        );
+    }
+
+    get datePolicyMessage() {
+        const messages = [];
+
+        if (
+            this.configuration &&
+            !this.configuration
+                .allowFutureExpenseDates
+        ) {
+            messages.push(
+                'Future expense dates are not allowed.'
+            );
+        }
+
+        const maximumAge =
+            this.configuration
+                ?.maximumExpenseAgeDays;
+
+        if (
+            maximumAge !== null &&
+            maximumAge !== undefined
+        ) {
+            messages.push(
+                `Expenses can be up to ${maximumAge} days old.`
+            );
+        }
+
+        return messages.join(' ');
+    }
+
+    get hasDatePolicyMessage() {
+        return Boolean(
+            this.datePolicyMessage
         );
     }
 
     get hasPolicyCalculation() {
         return this.items.some(
-            (item) => item.isCalculating
+            (item) =>
+                item.isCalculating
         );
     }
 
     get hasPolicyErrors() {
         return this.items.some(
-            (item) => Boolean(item.policyError)
+            (item) =>
+                Boolean(
+                    item.policyError
+                )
         );
     }
 
@@ -78,21 +138,25 @@ export default class ExpenseClaimForm extends LightningElement {
             this.isLoading ||
             this.isSubmitting ||
             this.hasPolicyCalculation ||
+            this.hasPolicyErrors ||
             this.items.length === 0
         );
     }
 
     get successReference() {
         return (
-            this.submissionResult?.claimNumber ||
-            this.submissionResult?.claimId ||
+            this.submissionResult
+                ?.claimNumber ||
+            this.submissionResult
+                ?.claimId ||
             ''
         );
     }
 
     createEmptyItem() {
         return this.decorateItem({
-            clientId: `item-${this.nextItemNumber++}`,
+            clientId:
+                `item-${this.nextItemNumber++}`,
 
             expenseDate: null,
             description: '',
@@ -124,8 +188,27 @@ export default class ExpenseClaimForm extends LightningElement {
             );
 
         const calculationMethod =
-            expenseType?.calculationMethod ||
+            expenseType
+                ?.calculationMethod ||
             item.calculationMethod ||
+            null;
+
+        const maximumAmount =
+            expenseType
+                ?.maximumAmount ??
+            null;
+
+        const unitRate =
+            item.unitRate ??
+            expenseType?.rate ??
+            null;
+
+        const distanceUnit =
+            item.distanceUnit ||
+            expenseType
+                ?.distanceUnit ||
+            this.configuration
+                ?.defaultDistanceUnit ||
             null;
 
         return {
@@ -134,23 +217,49 @@ export default class ExpenseClaimForm extends LightningElement {
             calculationMethod,
 
             isAmount:
-                calculationMethod === METHOD_AMOUNT,
+                calculationMethod ===
+                METHOD_AMOUNT,
 
             isDistance:
-                calculationMethod === METHOD_DISTANCE,
+                calculationMethod ===
+                METHOD_DISTANCE,
 
-            descriptionRequired: Boolean(
-                this.configuration?.requireDescription ||
-                expenseType?.descriptionRequired
-            ),
+            hasExpenseType:
+                Boolean(
+                    expenseType
+                ),
+
+            descriptionRequired:
+                Boolean(
+                    this.configuration
+                        ?.requireDescription ||
+                    expenseType
+                        ?.descriptionRequired
+                ),
 
             receiptRequired:
                 item.receiptRequired ??
-                expenseType?.receiptRequired ??
+                expenseType
+                    ?.receiptRequired ??
                 false,
 
-            maximumAmount:
-                expenseType?.maximumAmount ?? null
+            maximumAmount,
+
+            hasMaximumAmount:
+                maximumAmount !==
+                null,
+
+            unitRate,
+
+            hasUnitRate:
+                unitRate !== null,
+
+            distanceUnit,
+
+            lineTotal:
+                this.toFiniteNumber(
+                    item.claimedAmount
+                )
         };
     }
 
@@ -160,23 +269,30 @@ export default class ExpenseClaimForm extends LightningElement {
 
         return items.map(
             (item, index) => ({
-                ...this.decorateItem(item),
-                sequence: index + 1,
+                ...this.decorateItem(
+                    item
+                ),
+                sequence:
+                    index + 1,
                 canDelete
             })
         );
     }
 
-    findExpenseType(developerName) {
+    findExpenseType(
+        developerName
+    ) {
         if (!developerName) {
             return undefined;
         }
 
         return (
-            this.configuration?.expenseTypes || []
+            this.configuration
+                ?.expenseTypes || []
         ).find(
             (expenseType) =>
-                expenseType.developerName ===
+                expenseType
+                    .developerName ===
                 developerName
         );
     }
@@ -184,29 +300,45 @@ export default class ExpenseClaimForm extends LightningElement {
     findItem(clientId) {
         return this.items.find(
             (item) =>
-                item.clientId === clientId
+                item.clientId ===
+                clientId
         );
     }
 
-    updateItem(clientId, changes) {
-        this.items = this.normalizeItems(
-            this.items.map((item) =>
-                item.clientId === clientId
-                    ? {
-                          ...item,
-                          ...changes
-                      }
-                    : item
-            )
-        );
+    updateItem(
+        clientId,
+        changes
+    ) {
+        this.items =
+            this.normalizeItems(
+                this.items.map(
+                    (item) => {
+                        if (
+                            item.clientId ===
+                            clientId
+                        ) {
+                            return {
+                                ...item,
+                                ...changes
+                            };
+                        }
+
+                        return item;
+                    }
+                )
+            );
     }
 
-    handleClaimDescriptionChange(event) {
+    handleClaimDescriptionChange(
+        event
+    ) {
         this.claimDescription =
             event.target.value;
     }
 
-    async handleExpenseTypeChange(event) {
+    async handleExpenseTypeChange(
+        event
+    ) {
         const clientId =
             event.target.dataset.id;
 
@@ -218,55 +350,67 @@ export default class ExpenseClaimForm extends LightningElement {
                 expenseTypeCode
             );
 
+        const currentItem =
+            this.findItem(
+                clientId
+            );
+
         const isDistance =
-            expenseType?.calculationMethod ===
+            expenseType
+                ?.calculationMethod ===
             METHOD_DISTANCE;
 
-        this.updateItem(clientId, {
-            expenseTypeCode,
+        this.updateItem(
+            clientId,
+            {
+                expenseTypeCode,
 
-            calculationMethod:
-                expenseType?.calculationMethod ||
-                null,
+                calculationMethod:
+                    expenseType
+                        ?.calculationMethod ||
+                    null,
 
-            claimedAmount:
-                isDistance
-                    ? null
-                    : this.findItem(clientId)
-                          ?.claimedAmount,
+                claimedAmount: null,
 
-            distance:
-                isDistance
-                    ? this.findItem(clientId)
-                          ?.distance
-                    : null,
+                distance:
+                    isDistance
+                        ? currentItem
+                              ?.distance
+                        : null,
 
-            distanceUnit:
-                isDistance
-                    ? expenseType?.distanceUnit ||
-                      this.configuration
-                          ?.defaultDistanceUnit ||
-                      null
-                    : null,
+                distanceUnit:
+                    isDistance
+                        ? expenseType
+                              ?.distanceUnit ||
+                          this.configuration
+                              ?.defaultDistanceUnit ||
+                          null
+                        : null,
 
-            unitRate:
-                isDistance
-                    ? expenseType?.rate ?? null
-                    : null,
+                unitRate:
+                    isDistance
+                        ? expenseType
+                              ?.rate ??
+                          null
+                        : null,
 
-            receiptRequired:
-                expenseType?.receiptRequired ||
-                false,
+                receiptRequired:
+                    expenseType
+                        ?.receiptRequired ||
+                    false,
 
-            policyError: null
-        });
+                policyError: null
+            }
+        );
 
         await this.refreshPolicy(
             clientId
         );
     }
 
-    async handleItemInputChange(event) {
+    async handleItemInputChange(
+        event
+    ) {
         const clientId =
             event.target.dataset.id;
 
@@ -277,23 +421,32 @@ export default class ExpenseClaimForm extends LightningElement {
             event.target.value;
 
         if (
-            field === 'claimedAmount' ||
+            field ===
+                'claimedAmount' ||
             field === 'distance'
         ) {
             value =
-                this.toNumberOrNull(value);
+                this.toNumberOrNull(
+                    value
+                );
         }
 
-        this.updateItem(clientId, {
-            [field]: value,
-            policyError: null
-        });
+        this.updateItem(
+            clientId,
+            {
+                [field]: value,
+                policyError: null
+            }
+        );
 
         const item =
-            this.findItem(clientId);
+            this.findItem(
+                clientId
+            );
 
         if (
-            field === 'distance' &&
+            field ===
+                'distance' &&
             item?.isDistance &&
             item.expenseTypeCode
         ) {
@@ -325,9 +478,13 @@ export default class ExpenseClaimForm extends LightningElement {
             );
     }
 
-    async refreshPolicy(clientId) {
+    async refreshPolicy(
+        clientId
+    ) {
         const item =
-            this.findItem(clientId);
+            this.findItem(
+                clientId
+            );
 
         if (
             !item ||
@@ -339,11 +496,14 @@ export default class ExpenseClaimForm extends LightningElement {
         const policyRequestId =
             ++this.policyRequestSequence;
 
-        this.updateItem(clientId, {
-            isCalculating: true,
-            policyRequestId,
-            policyError: null
-        });
+        this.updateItem(
+            clientId,
+            {
+                isCalculating: true,
+                policyRequestId,
+                policyError: null
+            }
+        );
 
         try {
             const result =
@@ -357,47 +517,65 @@ export default class ExpenseClaimForm extends LightningElement {
                 });
 
             const latestItem =
-                this.findItem(clientId);
+                this.findItem(
+                    clientId
+                );
 
             if (
                 !latestItem ||
-                latestItem.policyRequestId !==
+                latestItem
+                    .policyRequestId !==
                     policyRequestId
             ) {
                 return;
             }
 
-            this.updateItem(clientId, {
-                ...result,
-
+            this.updateItem(
                 clientId,
-                policyRequestId,
+                {
+                    ...result,
 
-                isCalculating: false,
-                policyError: null
-            });
+                    clientId,
+                    policyRequestId,
+
+                    isCalculating:
+                        false,
+                    policyError: null
+                }
+            );
         } catch (error) {
             const latestItem =
-                this.findItem(clientId);
+                this.findItem(
+                    clientId
+                );
 
             if (
                 !latestItem ||
-                latestItem.policyRequestId !==
+                latestItem
+                    .policyRequestId !==
                     policyRequestId
             ) {
                 return;
             }
 
-            this.updateItem(clientId, {
-                isCalculating: false,
-                policyError:
-                    this.reduceError(error)
-            });
+            this.updateItem(
+                clientId,
+                {
+                    isCalculating:
+                        false,
+                    policyError:
+                        this.reduceError(
+                            error
+                        )
+                }
+            );
         }
     }
 
     async handleSubmit() {
-        if (this.hasPolicyCalculation) {
+        if (
+            this.hasPolicyCalculation
+        ) {
             this.showToast(
                 'Please wait',
                 'An expense amount is still being calculated.',
@@ -406,7 +584,9 @@ export default class ExpenseClaimForm extends LightningElement {
             return;
         }
 
-        if (!this.validateInputs()) {
+        if (
+            !this.validateInputs()
+        ) {
             this.showToast(
                 'Check the form',
                 'Complete the required fields before submitting.',
@@ -415,7 +595,9 @@ export default class ExpenseClaimForm extends LightningElement {
             return;
         }
 
-        if (this.hasPolicyErrors) {
+        if (
+            this.hasPolicyErrors
+        ) {
             this.showToast(
                 'Check the expenses',
                 'Resolve the expense policy errors before submitting.',
@@ -429,15 +611,17 @@ export default class ExpenseClaimForm extends LightningElement {
         try {
             const request = {
                 description:
-                    this.claimDescription?.trim() ||
+                    this.claimDescription
+                        ?.trim() ||
                     null,
 
-                items: this.items.map(
-                    (item) =>
-                        this.toServerItem(
-                            item
-                        )
-                )
+                items:
+                    this.items.map(
+                        (item) =>
+                            this.toServerItem(
+                                item
+                            )
+                    )
             };
 
             this.submissionResult =
@@ -453,17 +637,23 @@ export default class ExpenseClaimForm extends LightningElement {
         } catch (error) {
             this.showToast(
                 'Unable to submit claim',
-                this.reduceError(error),
+                this.reduceError(
+                    error
+                ),
                 'error'
             );
         } finally {
-            this.isSubmitting = false;
+            this.isSubmitting =
+                false;
         }
     }
 
     handleNewClaim() {
-        this.submissionResult = undefined;
-        this.claimDescription = '';
+        this.submissionResult =
+            undefined;
+
+        this.claimDescription =
+            '';
 
         this.items =
             this.normalizeItems([
@@ -477,19 +667,22 @@ export default class ExpenseClaimForm extends LightningElement {
 
     validateInputs() {
         const inputs =
-            this.template.querySelectorAll(
-                'lightning-input, lightning-combobox, lightning-textarea'
-            );
+            this.template
+                .querySelectorAll(
+                    'lightning-input, lightning-combobox, lightning-textarea'
+                );
 
         let valid = true;
 
-        inputs.forEach((input) => {
-            input.reportValidity();
+        inputs.forEach(
+            (input) => {
+                input.reportValidity();
 
-            valid =
-                input.checkValidity() &&
-                valid;
-        });
+                valid =
+                    input.checkValidity() &&
+                    valid;
+            }
+        );
 
         return valid;
     }
@@ -497,10 +690,12 @@ export default class ExpenseClaimForm extends LightningElement {
     toServerItem(item) {
         return {
             expenseDate:
-                item.expenseDate || null,
+                item.expenseDate ||
+                null,
 
             description:
-                item.description?.trim() ||
+                item.description
+                    ?.trim() ||
                 null,
 
             expenseTypeCode:
@@ -508,13 +703,16 @@ export default class ExpenseClaimForm extends LightningElement {
                 null,
 
             claimedAmount:
-                item.claimedAmount ?? null,
+                item.claimedAmount ??
+                null,
 
             distance:
-                item.distance ?? null,
+                item.distance ??
+                null,
 
             businessPurpose:
-                item.businessPurpose?.trim() ||
+                item.businessPurpose
+                    ?.trim() ||
                 null
         };
     }
@@ -531,14 +729,29 @@ export default class ExpenseClaimForm extends LightningElement {
         const parsed =
             Number(value);
 
-        return Number.isNaN(parsed)
+        return Number.isNaN(
+            parsed
+        )
             ? null
             : parsed;
     }
 
+    toFiniteNumber(value) {
+        const numberValue =
+            Number(value);
+
+        return Number.isFinite(
+            numberValue
+        )
+            ? numberValue
+            : 0;
+    }
+
     reduceError(error) {
         if (
-            Array.isArray(error?.body)
+            Array.isArray(
+                error?.body
+            )
         ) {
             return error.body
                 .map(
@@ -548,7 +761,9 @@ export default class ExpenseClaimForm extends LightningElement {
                 .join(', ');
         }
 
-        if (error?.body?.message) {
+        if (
+            error?.body?.message
+        ) {
             return error.body.message;
         }
 
@@ -559,7 +774,11 @@ export default class ExpenseClaimForm extends LightningElement {
         return 'An unexpected error occurred.';
     }
 
-    showToast(title, message, variant) {
+    showToast(
+        title,
+        message,
+        variant
+    ) {
         this.dispatchEvent(
             new ShowToastEvent({
                 title,
