@@ -57,8 +57,7 @@ private class ExpenseClaimControllerConfigTest {
 
     @IsTest
     static void applyPolicyReturnsServerDerivedValues() {
-        String expenseTypeCode =
-            ExpenseClaimControllerTestFactory.findActiveAmountTypeCode();
+        String expenseTypeCode = ExpenseClaimControllerTestFactory.findActiveAmountTypeCode();
 
         System.assertNotEquals(
             null,
@@ -112,6 +111,30 @@ private class ExpenseClaimControllerConfigTest {
         System.assertEquals(
             null,
             result.unitRate
+        );
+    }
+
+    @IsTest
+    static void createReceiptUploadKeyReturnsOpaqueKey() {
+        Test.startTest();
+
+        String uploadKey =
+            ExpenseClaimController.createReceiptUploadKey();
+
+        Test.stopTest();
+
+        System.assertEquals(
+            64,
+            uploadKey.length(),
+            'The receipt upload key should contain 64 characters.'
+        );
+
+        System.assert(
+            Pattern.matches(
+                '^[0-9a-fA-F]{64}$',
+                uploadKey
+            ),
+            'The receipt upload key should contain only hexadecimal characters.'
         );
     }
 

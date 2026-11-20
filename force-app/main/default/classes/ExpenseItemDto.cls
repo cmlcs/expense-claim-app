@@ -69,4 +69,10 @@ public class ExpenseItemDto {
      */
     @AuraEnabled
     public String businessPurpose { get; set; }
+
+    /**
+     * Opaque key used to correlate a pre-submission receipt upload.
+     */
+    @AuraEnabled
+    public String receiptUploadKey { get; set; }
 }

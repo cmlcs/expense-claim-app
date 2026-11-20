@@ -21,6 +21,40 @@ public inherited sharing class ExpenseClaimValidator {
     }
 
     /**
+     * Validates receipt correlation input before uploaded files are linked
+     * to persisted expense items.
+     *
+     * @param requestItems Claimant-supplied expense item DTOs.
+     * @param insertedItems Persisted expense items in matching list order.
+     */
+    public static void validateLinkingRequest(
+        List<ExpenseItemDto> requestItems,
+        List<Expense_Item__c> insertedItems
+    ) {
+        validateAlignedItems(
+            requestItems,
+            insertedItems
+        );
+
+        for (
+            Integer index = 0;
+            index < requestItems.size();
+            index++
+        ) {
+            String uploadKey =
+                normalizeUploadKey(
+                    requestItems[index]
+                        .receiptUploadKey
+                );
+
+            validateProvidedUploadKey(
+                uploadKey,
+                index
+            );
+        }
+    }
+
+    /**
      * Validates application-wide settings used during claim submission.
      *
      * @param settings Expense Claim settings.
