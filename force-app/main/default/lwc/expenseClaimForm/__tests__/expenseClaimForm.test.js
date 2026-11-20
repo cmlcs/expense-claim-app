@@ -34,7 +34,7 @@ const CONFIGURATION = {
     claimantEmail: 'claimant@example.com',
     defaultDistanceUnit: 'Kilometres',
     allowFutureExpenseDates: false,
-    maximumExpenseAgeDays: null,
+    maximumExpenseAgeDays: 90,
     requireDescription: false,
     allowClaimantAdjustmentAfterSubmission: false,
     expenseTypes: [
@@ -45,7 +45,7 @@ const CONFIGURATION = {
             rate: null,
             distanceUnit: null,
             receiptRequired: false,
-            maximumAmount: null,
+            maximumAmount: 100,
             descriptionRequired: false,
             sortOrder: 20
         },
@@ -101,17 +101,24 @@ function findButton(element, label) {
             'lightning-button'
         )
     ].find(
-        (button) => button.label === label
+        (button) =>
+            button.label === label
     );
 }
 
-function findInput(element, fieldName) {
+function findInput(
+    element,
+    fieldName
+) {
     return element.shadowRoot.querySelector(
         `lightning-input[data-field="${fieldName}"]`
     );
 }
 
-function changeInput(input, value) {
+function changeInput(
+    input,
+    value
+) {
     input.value = value;
 
     input.dispatchEvent(
@@ -129,41 +136,49 @@ function selectExpenseType(
         );
 
     combobox.dispatchEvent(
-        new CustomEvent('change', {
-            detail: {
-                value: expenseTypeCode
+        new CustomEvent(
+            'change',
+            {
+                detail: {
+                    value:
+                        expenseTypeCode
+                }
             }
-        })
+        )
     );
 }
 
-function makeFormValid(element) {
+function makeFormValid(
+    element
+) {
     const controls =
         element.shadowRoot.querySelectorAll(
             'lightning-input, lightning-combobox, lightning-textarea'
         );
 
-    controls.forEach((control) => {
-        Object.defineProperty(
-            control,
-            'reportValidity',
-            {
-                configurable: true,
-                value: jest.fn()
-            }
-        );
+    controls.forEach(
+        (control) => {
+            Object.defineProperty(
+                control,
+                'reportValidity',
+                {
+                    configurable: true,
+                    value: jest.fn()
+                }
+            );
 
-        Object.defineProperty(
-            control,
-            'checkValidity',
-            {
-                configurable: true,
-                value: jest.fn(
-                    () => true
-                )
-            }
-        );
-    });
+            Object.defineProperty(
+                control,
+                'checkValidity',
+                {
+                    configurable: true,
+                    value: jest.fn(
+                        () => true
+                    )
+                }
+            );
+        }
+    );
 }
 
 function amountPolicyResponse(
@@ -204,409 +219,645 @@ function distancePolicyResponse(
     };
 }
 
-describe('c-expense-claim-form', () => {
-    beforeEach(() => {
-        getConfiguration.mockResolvedValue(
-            cloneConfiguration()
-        );
-    });
+describe(
+    'c-expense-claim-form',
+    () => {
+        beforeEach(() => {
+            getConfiguration.mockResolvedValue(
+                cloneConfiguration()
+            );
+        });
 
-    afterEach(() => {
-        while (document.body.firstChild) {
-            document.body.removeChild(
+        afterEach(() => {
+            while (
                 document.body.firstChild
-            );
-        }
-
-        jest.clearAllMocks();
-    });
-
-    it('loads configuration and displays claimant information', async () => {
-        const element = createComponent();
-
-        await flushPromises();
-
-        expect(
-            getConfiguration
-        ).toHaveBeenCalledTimes(1);
-
-        expect(
-            element.shadowRoot.textContent
-        ).toContain('Test Claimant');
-
-        expect(
-            element.shadowRoot.textContent
-        ).toContain(
-            'claimant@example.com'
-        );
-
-        const combobox =
-            element.shadowRoot.querySelector(
-                'lightning-combobox'
-            );
-
-        expect(combobox.options).toEqual([
-            {
-                label: 'Meals',
-                value: 'Meals'
-            },
-            {
-                label: 'Mileage',
-                value: 'Mileage'
+            ) {
+                document.body.removeChild(
+                    document.body
+                        .firstChild
+                );
             }
-        ]);
 
-        expect(
-            element.shadowRoot.querySelectorAll(
-                '.expense-item'
-            )
-        ).toHaveLength(1);
-    });
-
-    it('displays configuration errors and allows retry', async () => {
-        getConfiguration.mockRejectedValueOnce({
-            body: {
-                message:
-                    'Configuration unavailable'
-            }
+            jest.clearAllMocks();
         });
 
-        const element = createComponent();
-
-        await flushPromises();
-
-        expect(
-            element.shadowRoot.textContent
-        ).toContain(
-            'Configuration unavailable'
-        );
-
-        const retryButton =
-            findButton(
-                element,
-                'Retry'
-            );
-
-        expect(retryButton).not.toBeUndefined();
-
-        retryButton.click();
-
-        await flushPromises();
-
-        expect(
-            getConfiguration
-        ).toHaveBeenCalledTimes(2);
-
-        expect(
-            element.shadowRoot.textContent
-        ).toContain('Test Claimant');
-    });
-
-    it('adds and removes expense items', async () => {
-        const element = createComponent();
-
-        await flushPromises();
-
-        const addButton =
-            findButton(
-                element,
-                'Add expense'
-            );
-
-        addButton.click();
-
-        await flushPromises();
-
-        expect(
-            element.shadowRoot.querySelectorAll(
-                '.expense-item'
-            )
-        ).toHaveLength(2);
-
-        const deleteButtons =
-            element.shadowRoot.querySelectorAll(
-                'lightning-button-icon'
-            );
-
-        expect(
-            deleteButtons
-        ).toHaveLength(2);
-
-        deleteButtons[0].click();
-
-        await flushPromises();
-
-        expect(
-            element.shadowRoot.querySelectorAll(
-                '.expense-item'
-            )
-        ).toHaveLength(1);
-    });
-
-    it('applies server policy when an amount expense type is selected', async () => {
-        applyPolicy.mockResolvedValueOnce(
-            amountPolicyResponse()
-        );
-
-        const element = createComponent();
-
-        await flushPromises();
-
-        selectExpenseType(
-            element,
-            'Meals'
-        );
-
-        await flushPromises();
-
-        expect(
-            applyPolicy
-        ).toHaveBeenCalledTimes(1);
-
-        expect(
-            applyPolicy
-        ).toHaveBeenCalledWith({
-            itemDto: {
-                expenseDate: null,
-                description: null,
-                expenseTypeCode: 'Meals',
-                claimedAmount: null,
-                distance: null,
-                businessPurpose: null
-            }
-        });
-
-        const amountInput =
-            findInput(
-                element,
-                'claimedAmount'
-            );
-
-        expect(
-            amountInput
-        ).not.toBeNull();
-
-        expect(
-            findInput(
-                element,
-                'distance'
-            )
-        ).toBeNull();
-    });
-
-    it('recalculates a distance expense through Apex', async () => {
-        applyPolicy
-            .mockResolvedValueOnce(
-                distancePolicyResponse()
-            )
-            .mockResolvedValueOnce(
-                distancePolicyResponse({
-                    distance: 10,
-                    claimedAmount: 2.8
-                })
-            );
-
-        const element = createComponent();
-
-        await flushPromises();
-
-        selectExpenseType(
-            element,
-            'Mileage'
-        );
-
-        await flushPromises();
-
-        const distanceInput =
-            findInput(
-                element,
-                'distance'
-            );
-
-        expect(
-            distanceInput
-        ).not.toBeNull();
-
-        changeInput(
-            distanceInput,
-            '10'
-        );
-
-        await flushPromises();
-
-        expect(
-            applyPolicy
-        ).toHaveBeenCalledTimes(2);
-
-        expect(
-            applyPolicy
-        ).toHaveBeenLastCalledWith({
-            itemDto: {
-                expenseDate: null,
-                description: null,
-                expenseTypeCode: 'Mileage',
-                claimedAmount: null,
-                distance: 10,
-                businessPurpose: null
-            }
-        });
-
-        const calculatedAmount =
-            [
-                ...element.shadowRoot.querySelectorAll(
-                    'lightning-input'
-                )
-            ].find(
-                (input) =>
-                    input.label ===
-                    'Calculated amount'
-            );
-
-        expect(
-            calculatedAmount
-        ).not.toBeUndefined();
-
-        expect(
-            calculatedAmount.value
-        ).toBe(2.8);
-
-        expect(
-            calculatedAmount.disabled
-        ).toBe(true);
-    });
-
-    it('submits only claimant-controlled values', async () => {
-        applyPolicy.mockResolvedValueOnce(
-            amountPolicyResponse({
-                expenseDate: '2026-11-18'
-            })
-        );
-
-        submitClaim.mockResolvedValueOnce(
-            SUBMISSION_RESULT
-        );
-
-        const element = createComponent();
-
-        await flushPromises();
-
-        const claimDescription =
-            element.shadowRoot.querySelector(
-                'lightning-textarea'
-            );
-
-        changeInput(
-            claimDescription,
-            ' November expenses '
-        );
-
-        const expenseDate =
-            findInput(
-                element,
-                'expenseDate'
-            );
-
-        changeInput(
-            expenseDate,
-            '2026-11-18'
-        );
-
-        await flushPromises();
-
-        selectExpenseType(
-            element,
-            'Meals'
-        );
-
-        await flushPromises();
-
-        const description =
-            findInput(
-                element,
-                'description'
-            );
-
-        changeInput(
-            description,
-            ' Team lunch '
-        );
-
-        await flushPromises();
-
-        const businessPurpose =
-            findInput(
-                element,
-                'businessPurpose'
-            );
-
-        changeInput(
-            businessPurpose,
-            'Donor meeting'
-        );
-
-        await flushPromises();
-
-        const claimedAmount =
-            findInput(
-                element,
-                'claimedAmount'
-            );
-
-        changeInput(
-            claimedAmount,
-            '37.50'
-        );
-
-        await flushPromises();
-
-        makeFormValid(element);
-
-        const submitButton =
-            findButton(
-                element,
-                'Submit claim'
-            );
-
-        submitButton.click();
-
-        await flushPromises();
-        await flushPromises();
-
-        expect(
-            submitClaim
-        ).toHaveBeenCalledTimes(1);
-
-        expect(
-            submitClaim
-        ).toHaveBeenCalledWith({
-            request: {
-                description:
-                    'November expenses',
-                items: [
+        it(
+            'loads configuration and displays claimant information',
+            async () => {
+                const element =
+                    createComponent();
+
+                await flushPromises();
+
+                expect(
+                    getConfiguration
+                ).toHaveBeenCalledTimes(
+                    1
+                );
+
+                expect(
+                    element.shadowRoot
+                        .textContent
+                ).toContain(
+                    'Test Claimant'
+                );
+
+                expect(
+                    element.shadowRoot
+                        .textContent
+                ).toContain(
+                    'claimant@example.com'
+                );
+
+                expect(
+                    element.shadowRoot
+                        .textContent
+                ).toContain(
+                    'Future expense dates are not allowed.'
+                );
+
+                expect(
+                    element.shadowRoot
+                        .textContent
+                ).toContain(
+                    'Expenses can be up to 90 days old.'
+                );
+
+                const combobox =
+                    element.shadowRoot
+                        .querySelector(
+                            'lightning-combobox'
+                        );
+
+                expect(
+                    combobox.options
+                ).toEqual([
                     {
-                        expenseDate:
-                            '2026-11-18',
-                        description:
-                            'Team lunch',
+                        label: 'Meals',
+                        value: 'Meals'
+                    },
+                    {
+                        label:
+                            'Mileage',
+                        value:
+                            'Mileage'
+                    }
+                ]);
+
+                expect(
+                    element.shadowRoot
+                        .querySelectorAll(
+                            '.expense-item'
+                        )
+                ).toHaveLength(1);
+            }
+        );
+
+        it(
+            'displays configuration errors and allows retry',
+            async () => {
+                getConfiguration
+                    .mockRejectedValueOnce({
+                        body: {
+                            message:
+                                'Configuration unavailable'
+                        }
+                    });
+
+                const element =
+                    createComponent();
+
+                await flushPromises();
+
+                expect(
+                    element.shadowRoot
+                        .textContent
+                ).toContain(
+                    'Configuration unavailable'
+                );
+
+                const retryButton =
+                    findButton(
+                        element,
+                        'Retry'
+                    );
+
+                expect(
+                    retryButton
+                ).not.toBeUndefined();
+
+                retryButton.click();
+
+                await flushPromises();
+
+                expect(
+                    getConfiguration
+                ).toHaveBeenCalledTimes(
+                    2
+                );
+
+                expect(
+                    element.shadowRoot
+                        .textContent
+                ).toContain(
+                    'Test Claimant'
+                );
+            }
+        );
+
+        it(
+            'adds and removes expense items',
+            async () => {
+                const element =
+                    createComponent();
+
+                await flushPromises();
+
+                const addButton =
+                    findButton(
+                        element,
+                        'Add expense'
+                    );
+
+                addButton.click();
+
+                await flushPromises();
+
+                expect(
+                    element.shadowRoot
+                        .querySelectorAll(
+                            '.expense-item'
+                        )
+                ).toHaveLength(2);
+
+                const deleteButtons =
+                    element.shadowRoot
+                        .querySelectorAll(
+                            'lightning-button-icon'
+                        );
+
+                expect(
+                    deleteButtons
+                ).toHaveLength(2);
+
+                deleteButtons[0].click();
+
+                await flushPromises();
+
+                expect(
+                    element.shadowRoot
+                        .querySelectorAll(
+                            '.expense-item'
+                        )
+                ).toHaveLength(1);
+            }
+        );
+
+        it(
+            'applies server policy when an amount expense type is selected',
+            async () => {
+                applyPolicy.mockResolvedValueOnce(
+                    amountPolicyResponse()
+                );
+
+                const element =
+                    createComponent();
+
+                await flushPromises();
+
+                selectExpenseType(
+                    element,
+                    'Meals'
+                );
+
+                await flushPromises();
+
+                expect(
+                    applyPolicy
+                ).toHaveBeenCalledTimes(
+                    1
+                );
+
+                expect(
+                    applyPolicy
+                ).toHaveBeenCalledWith({
+                    itemDto: {
+                        expenseDate: null,
+                        description: null,
                         expenseTypeCode:
                             'Meals',
-                        claimedAmount:
-                            37.5,
-                        distance:
-                            null,
+                        claimedAmount: null,
+                        distance: null,
                         businessPurpose:
-                            'Donor meeting'
+                            null
                     }
-                ]
+                });
+
+                const amountInput =
+                    findInput(
+                        element,
+                        'claimedAmount'
+                    );
+
+                expect(
+                    amountInput
+                ).not.toBeNull();
+
+                expect(
+                    amountInput.max
+                ).toBe(100);
+
+                expect(
+                    findInput(
+                        element,
+                        'distance'
+                    )
+                ).toBeNull();
             }
-        });
+        );
 
-        expect(
-            element.shadowRoot.textContent
-        ).toContain('EC-000001');
+        it(
+            'recalculates a distance expense through Apex',
+            async () => {
+                applyPolicy
+                    .mockResolvedValueOnce(
+                        distancePolicyResponse()
+                    )
+                    .mockResolvedValueOnce(
+                        distancePolicyResponse(
+                            {
+                                distance: 10,
+                                claimedAmount:
+                                    2.8
+                            }
+                        )
+                    );
 
-        expect(
-            element.shadowRoot.textContent
-        ).toContain('Submitted');
-    });
-});
+                const element =
+                    createComponent();
+
+                await flushPromises();
+
+                selectExpenseType(
+                    element,
+                    'Mileage'
+                );
+
+                await flushPromises();
+
+                const distanceInput =
+                    findInput(
+                        element,
+                        'distance'
+                    );
+
+                expect(
+                    distanceInput
+                ).not.toBeNull();
+
+                changeInput(
+                    distanceInput,
+                    '10'
+                );
+
+                await flushPromises();
+
+                expect(
+                    applyPolicy
+                ).toHaveBeenCalledTimes(
+                    2
+                );
+
+                expect(
+                    applyPolicy
+                ).toHaveBeenLastCalledWith({
+                    itemDto: {
+                        expenseDate: null,
+                        description: null,
+                        expenseTypeCode:
+                            'Mileage',
+                        claimedAmount: null,
+                        distance: 10,
+                        businessPurpose:
+                            null
+                    }
+                });
+
+                const calculatedAmount =
+                    [
+                        ...element
+                            .shadowRoot
+                            .querySelectorAll(
+                                'lightning-input'
+                            )
+                    ].find(
+                        (input) =>
+                            input.label ===
+                            'Calculated amount'
+                    );
+
+                expect(
+                    calculatedAmount
+                ).not.toBeUndefined();
+
+                expect(
+                    calculatedAmount.value
+                ).toBe(2.8);
+
+                expect(
+                    calculatedAmount.disabled
+                ).toBe(true);
+            }
+        );
+
+        it(
+            'updates the live claim total when an amount changes',
+            async () => {
+                applyPolicy.mockResolvedValueOnce(
+                    amountPolicyResponse()
+                );
+
+                const element =
+                    createComponent();
+
+                await flushPromises();
+
+                selectExpenseType(
+                    element,
+                    'Meals'
+                );
+
+                await flushPromises();
+
+                const amountInput =
+                    findInput(
+                        element,
+                        'claimedAmount'
+                    );
+
+                changeInput(
+                    amountInput,
+                    '37.50'
+                );
+
+                await flushPromises();
+
+                const claimTotal =
+                    element.shadowRoot
+                        .querySelector(
+                            'lightning-formatted-number[data-role="claim-total"]'
+                        );
+
+                expect(
+                    claimTotal
+                ).not.toBeNull();
+
+                expect(
+                    claimTotal.value
+                ).toBe(37.5);
+            }
+        );
+
+        it(
+            'marks description as required when the expense type requires it',
+            async () => {
+                applyPolicy.mockResolvedValueOnce(
+                    distancePolicyResponse()
+                );
+
+                const element =
+                    createComponent();
+
+                await flushPromises();
+
+                selectExpenseType(
+                    element,
+                    'Mileage'
+                );
+
+                await flushPromises();
+
+                const descriptionInput =
+                    findInput(
+                        element,
+                        'description'
+                    );
+
+                expect(
+                    descriptionInput.required
+                ).toBe(true);
+
+                const badges =
+                    [
+                        ...element.shadowRoot
+                            .querySelectorAll(
+                                'lightning-badge'
+                            )
+                    ];
+
+                const descriptionBadge =
+                    badges.find(
+                        (badge) =>
+                            badge.label ===
+                            'Description required'
+                    );
+
+                expect(
+                    descriptionBadge
+                ).not.toBeUndefined();
+            }
+        );
+
+        it(
+            'disables submission when an expense has a policy error',
+            async () => {
+                applyPolicy.mockRejectedValueOnce({
+                    body: {
+                        message:
+                            'Expense policy could not be applied.'
+                    }
+                });
+
+                const element =
+                    createComponent();
+
+                await flushPromises();
+
+                selectExpenseType(
+                    element,
+                    'Mileage'
+                );
+
+                await flushPromises();
+
+                const submitButton =
+                    findButton(
+                        element,
+                        'Submit claim'
+                    );
+
+                expect(
+                    submitButton.disabled
+                ).toBe(true);
+
+                expect(
+                    element.shadowRoot
+                        .textContent
+                ).toContain(
+                    'Expense policy could not be applied.'
+                );
+            }
+        );
+
+        it(
+            'submits only claimant-controlled values',
+            async () => {
+                applyPolicy.mockResolvedValueOnce(
+                    amountPolicyResponse({
+                        expenseDate:
+                            '2026-11-18'
+                    })
+                );
+
+                submitClaim.mockResolvedValueOnce(
+                    SUBMISSION_RESULT
+                );
+
+                const element =
+                    createComponent();
+
+                await flushPromises();
+
+                const claimDescription =
+                    element.shadowRoot
+                        .querySelector(
+                            'lightning-textarea'
+                        );
+
+                changeInput(
+                    claimDescription,
+                    ' November expenses '
+                );
+
+                const expenseDate =
+                    findInput(
+                        element,
+                        'expenseDate'
+                    );
+
+                changeInput(
+                    expenseDate,
+                    '2026-11-18'
+                );
+
+                await flushPromises();
+
+                selectExpenseType(
+                    element,
+                    'Meals'
+                );
+
+                await flushPromises();
+
+                const description =
+                    findInput(
+                        element,
+                        'description'
+                    );
+
+                changeInput(
+                    description,
+                    ' Team lunch '
+                );
+
+                await flushPromises();
+
+                const businessPurpose =
+                    findInput(
+                        element,
+                        'businessPurpose'
+                    );
+
+                changeInput(
+                    businessPurpose,
+                    'Donor meeting'
+                );
+
+                await flushPromises();
+
+                const claimedAmount =
+                    findInput(
+                        element,
+                        'claimedAmount'
+                    );
+
+                changeInput(
+                    claimedAmount,
+                    '37.50'
+                );
+
+                await flushPromises();
+
+                makeFormValid(
+                    element
+                );
+
+                const submitButton =
+                    findButton(
+                        element,
+                        'Submit claim'
+                    );
+
+                submitButton.click();
+
+                await flushPromises();
+                await flushPromises();
+
+                expect(
+                    submitClaim
+                ).toHaveBeenCalledTimes(
+                    1
+                );
+
+                expect(
+                    submitClaim
+                ).toHaveBeenCalledWith({
+                    request: {
+                        description:
+                            'November expenses',
+                        items: [
+                            {
+                                expenseDate:
+                                    '2026-11-18',
+                                description:
+                                    'Team lunch',
+                                expenseTypeCode:
+                                    'Meals',
+                                claimedAmount:
+                                    37.5,
+                                distance:
+                                    null,
+                                businessPurpose:
+                                    'Donor meeting'
+                            }
+                        ]
+                    }
+                });
+
+                expect(
+                    element.shadowRoot
+                        .textContent
+                ).toContain(
+                    'EC-000001'
+                );
+
+                expect(
+                    element.shadowRoot
+                        .textContent
+                ).toContain(
+                    'Submitted'
+                );
+            }
+        );
+    }
+);
