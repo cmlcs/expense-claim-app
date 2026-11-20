@@ -4,6 +4,7 @@ import ExpenseClaimForm from 'c/expenseClaimForm';
 import getConfiguration from '@salesforce/apex/ExpenseClaimController.getConfiguration';
 import applyPolicy from '@salesforce/apex/ExpenseClaimController.applyPolicy';
 import submitClaim from '@salesforce/apex/ExpenseClaimController.submitClaim';
+import createReceiptUploadKey from '@salesforce/apex/ExpenseClaimController.createReceiptUploadKey';
 
 jest.mock(
     '@salesforce/apex/ExpenseClaimController.getConfiguration',
@@ -28,6 +29,31 @@ jest.mock(
     }),
     { virtual: true }
 );
+
+jest.mock(
+    '@salesforce/apex/ExpenseClaimController.createReceiptUploadKey',
+    () => ({
+        default: jest.fn()
+    }),
+    { virtual: true }
+);
+
+jest.mock(
+    '@salesforce/schema/ContentVersion.Expense_Receipt_Key_fileupload__c',
+    () => ({
+        default: {
+            fieldApiName:
+                'Expense_Receipt_Key_fileupload__c'
+        }
+    }),
+    { virtual: true }
+);
+
+const RECEIPT_UPLOAD_KEY =
+    '0123456789abcdef'.repeat(4);
+
+const SECOND_RECEIPT_UPLOAD_KEY =
+    'fedcba9876543210'.repeat(4);
 
 const CONFIGURATION = {
     claimantName: 'Test Claimant',
@@ -77,7 +103,20 @@ function cloneConfiguration() {
     );
 }
 
+function configurationWithRequiredMealReceipt() {
+    const configuration =
+        cloneConfiguration();
+
+    configuration.expenseTypes[0]
+        .receiptRequired = true;
+
+    return configuration;
+}
+
 async function flushPromises() {
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
     await Promise.resolve();
     await Promise.resolve();
 }
@@ -95,7 +134,10 @@ function createComponent() {
     return element;
 }
 
-function findButton(element, label) {
+function findButton(
+    element,
+    label
+) {
     return [
         ...element.shadowRoot.querySelectorAll(
             'lightning-button'
@@ -142,6 +184,27 @@ function selectExpenseType(
                 detail: {
                     value:
                         expenseTypeCode
+                }
+            }
+        )
+    );
+}
+
+function uploadReceipt(
+    uploader,
+    fileNames
+) {
+    uploader.dispatchEvent(
+        new CustomEvent(
+            'uploadfinished',
+            {
+                detail: {
+                    files:
+                        fileNames.map(
+                            (name) => ({
+                                name
+                            })
+                        )
                 }
             }
         )
@@ -226,6 +289,10 @@ describe(
             getConfiguration.mockResolvedValue(
                 cloneConfiguration()
             );
+
+            createReceiptUploadKey.mockResolvedValue(
+                RECEIPT_UPLOAD_KEY
+            );
         });
 
         afterEach(() => {
@@ -251,6 +318,12 @@ describe(
 
                 expect(
                     getConfiguration
+                ).toHaveBeenCalledTimes(
+                    1
+                );
+
+                expect(
+                    createReceiptUploadKey
                 ).toHaveBeenCalledTimes(
                     1
                 );
@@ -357,6 +430,12 @@ describe(
                 );
 
                 expect(
+                    createReceiptUploadKey
+                ).toHaveBeenCalledTimes(
+                    1
+                );
+
+                expect(
                     element.shadowRoot
                         .textContent
                 ).toContain(
@@ -368,6 +447,14 @@ describe(
         it(
             'adds and removes expense items',
             async () => {
+                createReceiptUploadKey
+                    .mockResolvedValueOnce(
+                        RECEIPT_UPLOAD_KEY
+                    )
+                    .mockResolvedValueOnce(
+                        SECOND_RECEIPT_UPLOAD_KEY
+                    );
+
                 const element =
                     createComponent();
 
@@ -382,6 +469,12 @@ describe(
                 addButton.click();
 
                 await flushPromises();
+
+                expect(
+                    createReceiptUploadKey
+                ).toHaveBeenCalledTimes(
+                    2
+                );
 
                 expect(
                     element.shadowRoot
@@ -449,7 +542,9 @@ describe(
                         claimedAmount: null,
                         distance: null,
                         businessPurpose:
-                            null
+                            null,
+                        receiptUploadKey:
+                            RECEIPT_UPLOAD_KEY
                     }
                 });
 
@@ -539,7 +634,9 @@ describe(
                         claimedAmount: null,
                         distance: 10,
                         businessPurpose:
-                            null
+                            null,
+                        receiptUploadKey:
+                            RECEIPT_UPLOAD_KEY
                     }
                 });
 
@@ -710,6 +807,178 @@ describe(
         );
 
         it(
+            'prepares the receipt uploader with a generated upload key',
+            async () => {
+                applyPolicy.mockResolvedValueOnce(
+                    amountPolicyResponse()
+                );
+
+                const element =
+                    createComponent();
+
+                await flushPromises();
+
+                selectExpenseType(
+                    element,
+                    'Meals'
+                );
+
+                await flushPromises();
+
+                const uploader =
+                    element.shadowRoot
+                        .querySelector(
+                            'lightning-file-upload'
+                        );
+
+                expect(
+                    uploader
+                ).not.toBeNull();
+
+                expect(
+                    uploader.disabled
+                ).toBe(false);
+
+                expect(
+                    uploader.fileFieldName
+                ).toBe(
+                    'Expense_Receipt_Key_fileupload__c'
+                );
+
+                expect(
+                    uploader.fileFieldValue
+                ).toBe(
+                    RECEIPT_UPLOAD_KEY
+                );
+
+                expect(
+                    uploader.accept
+                ).toEqual([
+                    '.pdf',
+                    '.png',
+                    '.jpg',
+                    '.jpeg',
+                    '.heic',
+                    '.heif'
+                ]);
+            }
+        );
+
+        it(
+            'creates a receipt upload key for each added expense row',
+            async () => {
+                createReceiptUploadKey
+                    .mockResolvedValueOnce(
+                        RECEIPT_UPLOAD_KEY
+                    )
+                    .mockResolvedValueOnce(
+                        SECOND_RECEIPT_UPLOAD_KEY
+                    );
+
+                const element =
+                    createComponent();
+
+                await flushPromises();
+
+                findButton(
+                    element,
+                    'Add expense'
+                ).click();
+
+                await flushPromises();
+
+                expect(
+                    createReceiptUploadKey
+                ).toHaveBeenCalledTimes(
+                    2
+                );
+
+                const expenseItems =
+                    element.shadowRoot
+                        .querySelectorAll(
+                            '.expense-item'
+                        );
+
+                expect(
+                    expenseItems
+                ).toHaveLength(2);
+            }
+        );
+
+        it(
+            'requires an uploaded receipt when policy requires one',
+            async () => {
+                getConfiguration.mockResolvedValueOnce(
+                    configurationWithRequiredMealReceipt()
+                );
+
+                applyPolicy.mockResolvedValueOnce(
+                    amountPolicyResponse({
+                        receiptRequired: true
+                    })
+                );
+
+                const element =
+                    createComponent();
+
+                await flushPromises();
+
+                selectExpenseType(
+                    element,
+                    'Meals'
+                );
+
+                await flushPromises();
+
+                let submitButton =
+                    findButton(
+                        element,
+                        'Submit claim'
+                    );
+
+                expect(
+                    submitButton.disabled
+                ).toBe(true);
+
+                const uploader =
+                    element.shadowRoot
+                        .querySelector(
+                            'lightning-file-upload'
+                        );
+
+                expect(
+                    uploader
+                ).not.toBeNull();
+
+                uploadReceipt(
+                    uploader,
+                    [
+                        'meal-receipt.pdf'
+                    ]
+                );
+
+                await flushPromises();
+
+                expect(
+                    element.shadowRoot
+                        .textContent
+                ).toContain(
+                    'meal-receipt.pdf'
+                );
+
+                submitButton =
+                    findButton(
+                        element,
+                        'Submit claim'
+                    );
+
+                expect(
+                    submitButton.disabled
+                ).toBe(false);
+            }
+        );
+
+        it(
             'submits only claimant-controlled values',
             async () => {
                 applyPolicy.mockResolvedValueOnce(
@@ -838,7 +1107,9 @@ describe(
                                 distance:
                                     null,
                                 businessPurpose:
-                                    'Donor meeting'
+                                    'Donor meeting',
+                                receiptUploadKey:
+                                    RECEIPT_UPLOAD_KEY
                             }
                         ]
                     }

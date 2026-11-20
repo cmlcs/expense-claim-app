@@ -378,6 +378,80 @@
                                     </div>
                                 </template>
                             </template>
+
+                            <template
+                                lwc:if={item.hasExpenseType}
+                            >
+                                <div
+                                    class="slds-col slds-size_1-of-1 slds-m-top_medium"
+                                >
+                                    <lightning-file-upload
+                                        label="Receipt"
+                                        name="receiptUploader"
+                                        accept={acceptedReceiptFormats}
+                                        multiple
+                                        file-field-name={receiptKeyFieldApiName}
+                                        file-field-value={item.receiptUploadKey}
+                                        disabled={item.isReceiptUploadDisabled}
+                                        data-id={item.clientId}
+                                        onuploadfinished={handleReceiptUploadFinished}>
+                                    </lightning-file-upload>
+
+                                    <template
+                                        lwc:if={item.isPreparingReceiptUpload}
+                                    >
+                                        <p
+                                            class="slds-text-body_small slds-text-color_weak slds-m-top_x-small"
+                                        >
+                                            Preparing receipt upload…
+                                        </p>
+                                    </template>
+
+                                    <template
+                                        lwc:if={item.receiptUploadError}
+                                    >
+                                        <div
+                                            class="slds-m-top_x-small"
+                                        >
+                                            <p
+                                                class="slds-text-color_error"
+                                                role="alert"
+                                            >
+                                                {item.receiptUploadError}
+                                            </p>
+
+                                            <lightning-button
+                                                class="slds-m-top_x-small"
+                                                label="Retry receipt upload"
+                                                data-id={item.clientId}
+                                                onclick={handleRetryReceiptUpload}>
+                                            </lightning-button>
+                                        </div>
+                                    </template>
+
+                                    <template
+                                        lwc:if={item.hasReceipts}
+                                    >
+                                        <div
+                                            class="slds-m-top_x-small"
+                                        >
+                                            <lightning-icon
+                                                icon-name="utility:success"
+                                                alternative-text="Receipt uploaded"
+                                                size="xx-small"
+                                                variant="success">
+                                            </lightning-icon>
+
+                                            <span
+                                                class="slds-text-body_small slds-m-left_x-small"
+                                            >
+                                                Uploaded:
+                                                {item.receiptSummary}
+                                            </span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
                         </div>
 
                         <div

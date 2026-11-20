@@ -96,71 +96,49 @@ public with sharing class ExpenseClaimController {
      * @param request Expense Claim submission request.
      * @return Submission result.
      */
+
     @AuraEnabled
     public static ExpenseClaimResponseDto submitClaim(
         ExpenseClaimRequestDto request
     ) {
         try {
-            requireRequest(request);
-
-            Expense_Claim__c claim =
-                ExpenseClaimDtoMapper.toExpenseClaim(
-                    request
-                );
-
-            List<Expense_Item__c> items =
-                ExpenseClaimDtoMapper.toExpenseItems(
-                    request.items
-                );
-
-            claim =
-                ExpenseClaimPersistenceService.sanitizeClaimInput(
-                    claim
-                );
-
-            items =
-                ExpenseClaimPersistenceService.sanitizeItemInput(
-                    items
-                );
-
-            claim.Status__c =
-                STATUS_DRAFT;
-
-            ExpenseClaimService.prepareForSubmission(
-                claim,
-                items
-            );
-
-            ExpenseClaimPersistenceService.persistSubmission(
-                claim,
-                items
-            );
-
-            return ExpenseClaimDtoMapper.toResponse(
-                claim,
-                items
-            );
-        } catch (
-            ExpensePolicyService.ExpensePolicyException exceptionValue
-        ) {
-            throw clientException(
-                exceptionValue.getMessage()
+            return submitClaimInternal(
+                request
             );
         } catch (
             ExpenseClaimService.ExpenseClaimException exceptionValue
         ) {
-            throw clientException(
+            throw new AuraHandledException(
                 exceptionValue.getMessage()
             );
-        } catch (DmlException exceptionValue) {
-            throw clientException(
-                'Unable to save the Expense Claim.'
+        } catch (
+            ExpensePolicyService.ExpensePolicyException exceptionValue
+        ) {
+            throw new AuraHandledException(
+                exceptionValue.getMessage()
+            );
+        } catch (
+            ExpenseReceiptService.ExpenseReceiptException exceptionValue
+        ) {
+            throw new AuraHandledException(
+                exceptionValue.getMessage()
             );
         } catch (Exception exceptionValue) {
-            throw clientException(
-                'Unable to submit the Expense Claim.'
+            throw new AuraHandledException(
+                'The expense claim could not be submitted.'
             );
         }
+    }
+
+    /**
+     * Creates an opaque key used to correlate receipt uploads with an
+     * expense line before the expense item has been persisted.
+     *
+     * @return A cryptographically random receipt upload key.
+     */
+    @AuraEnabled
+    public static String createReceiptUploadKey() {
+        return ExpenseReceiptService.createUploadKey();
     }
 
     /**
@@ -190,5 +168,62 @@ public with sharing class ExpenseClaimController {
         return new AuraHandledException(
             message
         );
+    }
+
+    private static ExpenseClaimResponseDto submitClaimInternal(
+        ExpenseClaimRequestDto request
+    ) {
+        if (request == null) {
+            throw new ExpenseClaimService.ExpenseClaimException(
+                    'Expense claim request is required.'
+                );
+        }
+
+        Expense_Claim__c claim =
+            ExpenseClaimDtoMapper.toExpenseClaim(
+                request
+            );
+
+        List<Expense_Item__c> items =
+            ExpenseClaimDtoMapper.toExpenseItems(
+                request.items
+            );
+
+        claim =
+            ExpenseClaimPersistenceService.sanitizeClaimInput(
+                    claim
+                );
+
+        items =
+            ExpenseClaimPersistenceService.sanitizeItemInput(
+                    items
+                );
+
+        claim.Status__c = 'Draft';
+
+        ExpenseClaimService.prepareForSubmission(
+                claim,
+                items
+            );
+
+        ExpenseReceiptService.validateReceipts(
+                request.items,
+                items
+            );
+
+        ExpenseClaimPersistenceService.persistSubmission(
+                claim,
+                items
+            );
+
+        ExpenseReceiptService.linkReceipts(
+                request.items,
+                items
+            );
+
+        return ExpenseClaimDtoMapper.toResponse(
+                claim,
+                items
+            );
     }
 }

@@ -3,6 +3,9 @@ import { LightningElement } from 'lwc';
 import getConfiguration from '@salesforce/apex/ExpenseClaimController.getConfiguration';
 import applyPolicy from '@salesforce/apex/ExpenseClaimController.applyPolicy';
 import submitClaim from '@salesforce/apex/ExpenseClaimController.submitClaim';
+import createReceiptUploadKey from '@salesforce/apex/ExpenseClaimController.createReceiptUploadKey';
+
+import RECEIPT_KEY_FIELD from '@salesforce/schema/ContentVersion.Expense_Receipt_Key_fileupload__c';
 
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 
@@ -35,9 +38,17 @@ export default class ExpenseClaimForm extends LightningElement {
             this.configuration =
                 await getConfiguration();
 
-            this.items = this.normalizeItems([
-                this.createEmptyItem()
-            ]);
+            const item =
+                this.createEmptyItem();
+
+            this.items =
+                this.normalizeItems([
+                    item
+                ]);
+
+            await this.prepareReceiptUploadKey(
+                item.clientId
+            );
         } catch (error) {
             this.loadError =
                 this.reduceError(error);
@@ -69,6 +80,21 @@ export default class ExpenseClaimForm extends LightningElement {
             value:
                 expenseType.developerName
         }));
+    }
+
+    get receiptKeyFieldApiName() {
+        return RECEIPT_KEY_FIELD.fieldApiName;
+    }
+
+    get acceptedReceiptFormats() {
+        return [
+            '.pdf',
+            '.png',
+            '.jpg',
+            '.jpeg',
+            '.heic',
+            '.heif'
+        ];
     }
 
     get claimTotal() {
@@ -133,12 +159,21 @@ export default class ExpenseClaimForm extends LightningElement {
         );
     }
 
+    get hasMissingRequiredReceipts() {
+        return this.items.some(
+            (item) =>
+                item.receiptRequired &&
+                !item.hasReceipts
+        );
+    }
+
     get isSubmitDisabled() {
         return (
             this.isLoading ||
             this.isSubmitting ||
             this.hasPolicyCalculation ||
             this.hasPolicyErrors ||
+            this.hasMissingRequiredReceipts ||
             this.items.length === 0
         );
     }
@@ -174,6 +209,11 @@ export default class ExpenseClaimForm extends LightningElement {
             unitRate: null,
 
             receiptRequired: false,
+
+            receiptUploadKey: null,
+            receiptNames: [],
+            isPreparingReceiptUpload: true,
+            receiptUploadError: null,
 
             isCalculating: false,
             policyError: null,
@@ -211,6 +251,9 @@ export default class ExpenseClaimForm extends LightningElement {
                 ?.defaultDistanceUnit ||
             null;
 
+        const receiptNames =
+            item.receiptNames || [];
+
         return {
             ...item,
 
@@ -242,6 +285,21 @@ export default class ExpenseClaimForm extends LightningElement {
                 expenseType
                     ?.receiptRequired ??
                 false,
+
+            receiptNames,
+
+            hasReceipts:
+                receiptNames.length > 0,
+
+            receiptSummary:
+                receiptNames.join(', '),
+
+            isReceiptUploadDisabled:
+                item.isPreparingReceiptUpload ||
+                !item.receiptUploadKey ||
+                Boolean(
+                    item.receiptUploadError
+                ),
 
             maximumAmount,
 
@@ -456,12 +514,19 @@ export default class ExpenseClaimForm extends LightningElement {
         }
     }
 
-    handleAddItem() {
+    async handleAddItem() {
+        const item =
+            this.createEmptyItem();
+
         this.items =
             this.normalizeItems([
                 ...this.items,
-                this.createEmptyItem()
+                item
             ]);
+
+        await this.prepareReceiptUploadKey(
+            item.clientId
+        );
     }
 
     handleDeleteItem(event) {
@@ -476,6 +541,92 @@ export default class ExpenseClaimForm extends LightningElement {
                         clientId
                 )
             );
+    }
+
+    async prepareReceiptUploadKey(
+        clientId
+    ) {
+        this.updateItem(
+            clientId,
+            {
+                isPreparingReceiptUpload:
+                    true,
+                receiptUploadError: null
+            }
+        );
+
+        try {
+            const receiptUploadKey =
+                await createReceiptUploadKey();
+
+            this.updateItem(
+                clientId,
+                {
+                    receiptUploadKey,
+                    isPreparingReceiptUpload:
+                        false,
+                    receiptUploadError:
+                        null
+                }
+            );
+        } catch (error) {
+            this.updateItem(
+                clientId,
+                {
+                    receiptUploadKey:
+                        null,
+                    isPreparingReceiptUpload:
+                        false,
+                    receiptUploadError:
+                        this.reduceError(
+                            error
+                        )
+                }
+            );
+        }
+    }
+
+    handleReceiptUploadFinished(
+        event
+    ) {
+        const clientId =
+            event.target.dataset.id;
+
+        const item =
+            this.findItem(
+                clientId
+            );
+
+        if (!item) {
+            return;
+        }
+
+        const uploadedNames =
+            event.detail.files.map(
+                (file) =>
+                    file.name
+            );
+
+        this.updateItem(
+            clientId,
+            {
+                receiptNames: [
+                    ...(item.receiptNames ||
+                        []),
+                    ...uploadedNames
+                ],
+                receiptUploadError:
+                    null
+            }
+        );
+    }
+
+    async handleRetryReceiptUpload(
+        event
+    ) {
+        await this.prepareReceiptUploadKey(
+            event.target.dataset.id
+        );
     }
 
     async refreshPolicy(
@@ -538,8 +689,25 @@ export default class ExpenseClaimForm extends LightningElement {
                     clientId,
                     policyRequestId,
 
+                    receiptUploadKey:
+                        latestItem
+                            .receiptUploadKey,
+
+                    receiptNames:
+                        latestItem
+                            .receiptNames,
+
+                    receiptUploadError:
+                        latestItem
+                            .receiptUploadError,
+
+                    isPreparingReceiptUpload:
+                        latestItem
+                            .isPreparingReceiptUpload,
+
                     isCalculating:
                         false,
+
                     policyError: null
                 }
             );
@@ -606,6 +774,17 @@ export default class ExpenseClaimForm extends LightningElement {
             return;
         }
 
+        if (
+            this.hasMissingRequiredReceipts
+        ) {
+            this.showToast(
+                'Receipt required',
+                'Upload the required receipts before submitting.',
+                'error'
+            );
+            return;
+        }
+
         this.isSubmitting = true;
 
         try {
@@ -648,17 +827,24 @@ export default class ExpenseClaimForm extends LightningElement {
         }
     }
 
-    handleNewClaim() {
+    async handleNewClaim() {
         this.submissionResult =
             undefined;
 
         this.claimDescription =
             '';
 
+        const item =
+            this.createEmptyItem();
+
         this.items =
             this.normalizeItems([
-                this.createEmptyItem()
+                item
             ]);
+
+        await this.prepareReceiptUploadKey(
+            item.clientId
+        );
     }
 
     handleRetry() {
@@ -713,6 +899,10 @@ export default class ExpenseClaimForm extends LightningElement {
             businessPurpose:
                 item.businessPurpose
                     ?.trim() ||
+                null,
+
+            receiptUploadKey:
+                item.receiptUploadKey ||
                 null
         };
     }
