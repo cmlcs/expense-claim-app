@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Verification_Attempts__c</fullName>
+    <defaultValue>0</defaultValue>
+    <description>
+        Counts unsuccessful attempts to verify the code for this access request. The application uses this value to limit repeated guessing of the verification code and lock the request after too many failures.
+    </description>
+    <inlineHelpText>
+        Incremented automatically after an invalid code is submitted. Do not reset manually to bypass the verification-attempt limit.
+    </inlineHelpText>
+    <label>Verification Attempts</label>
+    <precision>2</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <type>Number</type>
+</CustomField>

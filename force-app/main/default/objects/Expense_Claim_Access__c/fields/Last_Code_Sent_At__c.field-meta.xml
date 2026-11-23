@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Last_Code_Sent_At__c</fullName>
+    <description>
+        Records when the most recent verification code was sent for this access request. The timestamp supports resend throttling so repeated requests cannot generate excessive email or be used to abuse the public endpoint.
+    </description>
+    <inlineHelpText>
+        Updated automatically whenever the application sends a verification code.
+    </inlineHelpText>
+    <label>Last Code Sent At</label>
+    <required>false</required>
+    <type>DateTime</type>
+</CustomField>

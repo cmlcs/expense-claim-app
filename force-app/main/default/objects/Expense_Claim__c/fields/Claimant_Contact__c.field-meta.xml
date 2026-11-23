@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Claimant_Contact__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>Identifies the Contact whose verified email address was used to authorize an unauthenticated Expense Claim. This provides a trusted Salesforce identity for guest submissions while authenticated submissions can continue to use Claimant_User__c.</description>
+    <inlineHelpText>Populated by the Expense Claim application for verified guest submissions. Do not accept or trust this value directly from the browser.</inlineHelpText>
+    <label>Claimant Contact</label>
+    <referenceTo>Contact</referenceTo>
+    <relationshipLabel>Expense Claims</relationshipLabel>
+    <relationshipName>Expense_Claims</relationshipName>
+    <required>false</required>
+    <type>Lookup</type>
+</CustomField>

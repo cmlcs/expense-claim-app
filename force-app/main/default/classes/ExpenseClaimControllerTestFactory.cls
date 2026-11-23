@@ -15,12 +15,17 @@ public class ExpenseClaimControllerTestFactory {
             ExpenseTypeRepository.getActiveExpenseTypes()
         ) {
             if (
-                expenseType.Calculation_Method__c ==
-                'Amount'
+                expenseType.Calculation_Method__c == 'Amount' &&
+                expenseType.Receipt_Required__c != true
             ) {
                 return expenseType.DeveloperName;
             }
         }
+
+        System.assert(
+            false,
+            'The test requires an active Amount expense type that does not require a receipt.'
+        );
 
         return null;
     }
@@ -81,4 +86,33 @@ public class ExpenseClaimControllerTestFactory {
 
         return request;
     }
+    /**
+     * Finds an active Amount expense type that does not require a receipt.
+     *
+     * This is used by submission tests that need to exercise claim processing
+     * without introducing receipt-upload requirements.
+     *
+     * @return DeveloperName of a suitable active Expense Type.
+     */
+    public static String findActiveAmountTypeWithoutRequiredReceipt() {
+        for (
+            Expense_Type__mdt expenseType :
+            ExpenseTypeRepository.getActiveExpenseTypes()
+        ) {
+            if (
+                expenseType.Calculation_Method__c == 'Amount' &&
+                expenseType.Receipt_Required__c != true
+            ) {
+                return expenseType.DeveloperName;
+            }
+        }
+
+        System.assert(
+            false,
+            'The test requires an active Amount expense type without a required receipt.'
+        );
+
+        return null;
+    }
+
 }

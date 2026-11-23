@@ -57,7 +57,8 @@ private class ExpenseClaimControllerConfigTest {
 
     @IsTest
     static void applyPolicyReturnsServerDerivedValues() {
-        String expenseTypeCode = ExpenseClaimControllerTestFactory.findActiveAmountTypeCode();
+        String expenseTypeCode =
+            ExpenseClaimControllerTestFactory.findActiveAmountTypeCode();
 
         System.assertNotEquals(
             null,

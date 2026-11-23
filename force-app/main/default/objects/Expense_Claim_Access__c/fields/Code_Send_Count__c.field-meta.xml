@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Code_Send_Count__c</fullName>
+    <defaultValue>0</defaultValue>
+    <description>
+        Counts how many verification codes have been issued for this access request. The application uses this value together with send timestamps to enforce resend and rate limits on the public verification endpoint.
+    </description>
+    <inlineHelpText>
+        Incremented automatically whenever a verification code is issued or reissued.
+    </inlineHelpText>
+    <label>Code Send Count</label>
+    <precision>3</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <type>Number</type>
+</CustomField>

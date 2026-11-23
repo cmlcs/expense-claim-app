@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Access_Expires_At__c</fullName>
+    <description>
+        Defines when the verified guest access token stops being valid. Expiring access sessions limits how long an anonymous browser can use a previously verified identity to interact with the Expense Claim application.
+    </description>
+    <inlineHelpText>
+        Set automatically when email verification succeeds. Guest API requests after this date and time must be rejected.
+    </inlineHelpText>
+    <label>Access Expires At</label>
+    <required>false</required>
+    <type>DateTime</type>
+</CustomField>

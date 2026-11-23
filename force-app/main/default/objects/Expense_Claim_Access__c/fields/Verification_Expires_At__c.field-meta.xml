@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Verification_Expires_At__c</fullName>
+    <description>
+        Defines when the emailed verification code stops being valid. A short expiry period limits the time in which an intercepted or previously issued code can be used.
+    </description>
+    <inlineHelpText>
+        Set automatically when a verification code is issued. Codes submitted after this date and time must be rejected.
+    </inlineHelpText>
+    <label>Verification Expires At</label>
+    <required>false</required>
+    <type>DateTime</type>
+</CustomField>

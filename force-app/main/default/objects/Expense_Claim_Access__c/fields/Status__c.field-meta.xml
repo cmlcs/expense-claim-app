@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Status__c</fullName>
+    <description>
+        Represents the lifecycle state of the guest access request. The application uses the status together with expiry and attempt information to determine whether verification or subsequent Expense Claim operations are permitted.
+    </description>
+    <inlineHelpText>
+        Managed by the application: Pending while awaiting verification, Verified after success, Used after submission, Expired after timeout, or Locked after security limits are exceeded.
+    </inlineHelpText>
+    <label>Status</label>
+    <required>true</required>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+
+            <value>
+                <fullName>Pending</fullName>
+                <default>true</default>
+                <label>Pending</label>
+            </value>
+
+            <value>
+                <fullName>Verified</fullName>
+                <default>false</default>
+                <label>Verified</label>
+            </value>
+
+            <value>
+                <fullName>Used</fullName>
+                <default>false</default>
+                <label>Used</label>
+            </value>
+
+            <value>
+                <fullName>Expired</fullName>
+                <default>false</default>
+                <label>Expired</label>
+            </value>
+
+            <value>
+                <fullName>Locked</fullName>
+                <default>false</default>
+                <label>Locked</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>
