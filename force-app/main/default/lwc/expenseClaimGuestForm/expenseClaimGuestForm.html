@@ -1,0 +1,150 @@
+<template>
+    <div class="guest-form">
+        <template lwc:if={showEmailStep}>
+            <lightning-card
+                title="Expense claim"
+                icon-name="standard:expense"
+            >
+                <div class="slds-p-around_medium">
+                    <p class="slds-m-bottom_medium">
+                        Enter your volunteer email address.
+                        We will send a verification code before
+                        you can submit an expense claim.
+                    </p>
+
+                    <lightning-input
+                        data-id="email"
+                        type="email"
+                        name="email"
+                        label="Email address"
+                        value={email}
+                        onchange={handleEmailChange}
+                        required
+                        autocomplete="email"
+                    >
+                    </lightning-input>
+
+                    <template lwc:if={errorMessage}>
+                        <div
+                            class="slds-notify
+                                   slds-notify_alert
+                                   slds-alert_error
+                                   slds-m-top_medium"
+                            role="alert"
+                        >
+                            {errorMessage}
+                        </div>
+                    </template>
+
+                    <div class="slds-m-top_medium">
+                        <lightning-button
+                            variant="brand"
+                            label={requestButtonLabel}
+                            onclick={handleRequestCode}
+                            disabled={requestButtonDisabled}
+                        >
+                        </lightning-button>
+                    </div>
+                </div>
+            </lightning-card>
+        </template>
+
+        <template lwc:elseif={showCodeStep}>
+            <lightning-card
+                title="Verify your email"
+                icon-name="utility:email"
+            >
+                <div class="slds-p-around_medium">
+                    <template lwc:if={requestMessage}>
+                        <div
+                            class="slds-notify
+                                   slds-notify_alert
+                                   slds-theme_info
+                                   slds-m-bottom_medium"
+                            role="status"
+                        >
+                            {requestMessage}
+                        </div>
+                    </template>
+
+                    <p class="slds-m-bottom_medium">
+                        Enter the six-digit verification code.
+                    </p>
+
+                    <lightning-input
+                        data-id="verification-code"
+                        type="text"
+                        name="verificationCode"
+                        label="Verification code"
+                        value={verificationCode}
+                        onchange={handleCodeChange}
+                        pattern="[0-9]{6}"
+                        message-when-pattern-mismatch="Enter the six-digit code."
+                        minlength="6"
+                        maxlength="6"
+                        required
+                        autocomplete="one-time-code"
+                    >
+                    </lightning-input>
+
+                    <template lwc:if={errorMessage}>
+                        <div
+                            class="slds-notify
+                                   slds-notify_alert
+                                   slds-alert_error
+                                   slds-m-top_medium"
+                            role="alert"
+                        >
+                            {errorMessage}
+                        </div>
+                    </template>
+
+                    <div
+                        class="slds-m-top_medium
+                               slds-grid
+                               slds-wrap
+                               slds-gutters_small"
+                    >
+                        <div class="slds-col">
+                            <lightning-button
+                                variant="brand"
+                                label={verifyButtonLabel}
+                                onclick={handleVerifyCode}
+                                disabled={verifyButtonDisabled}
+                            >
+                            </lightning-button>
+                        </div>
+
+                        <div class="slds-col">
+                            <lightning-button
+                                variant="neutral"
+                                label="Send code again"
+                                onclick={handleResendCode}
+                                disabled={requestButtonDisabled}
+                            >
+                            </lightning-button>
+                        </div>
+
+                        <div class="slds-col">
+                            <lightning-button
+                                variant="base"
+                                label="Use another email"
+                                onclick={handleChangeEmail}
+                            >
+                            </lightning-button>
+                        </div>
+                    </div>
+                </div>
+            </lightning-card>
+        </template>
+
+        <template lwc:elseif={showClaimStep}>
+            <c-expense-claim-form
+                guest-mode
+                access-token={accessToken}
+                onreauthenticate={handleReauthenticate}
+            >
+            </c-expense-claim-form>
+        </template>
+    </div>
+</template>

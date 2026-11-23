@@ -1,449 +1,427 @@
 <template>
-    <lightning-card title="Expense Claim">
-        <div
-            class="form-container slds-p-around_medium"
-        >
-            <template lwc:if={isLoading}>
-                <div class="loading-container">
-                    <lightning-spinner
-                        alternative-text="Loading expense claim configuration"
-                        size="medium">
-                    </lightning-spinner>
-                </div>
-            </template>
+    <!-- Loading -->
+    <template lwc:if={isLoading}>
+        <div class="slds-p-around_large">
+            <lightning-spinner
+                alternative-text="Loading expense claim"
+                size="medium"
+            >
+            </lightning-spinner>
+        </div>
+    </template>
 
-            <template lwc:elseif={loadError}>
+    <!-- Configuration error -->
+    <template lwc:elseif={hasLoadError}>
+        <lightning-card
+            title="Expense claim"
+            icon-name="standard:expense"
+        >
+            <div class="slds-p-around_medium">
                 <div
                     class="slds-notify slds-notify_alert slds-alert_error"
                     role="alert"
                 >
-                    <span
-                        class="slds-assistive-text"
-                    >
-                        Error
-                    </span>
-
-                    <div>
+                    <span>
                         {loadError}
-                    </div>
+                    </span>
                 </div>
 
-                <div
-                    class="slds-m-top_medium"
-                >
+                <div class="slds-m-top_medium">
                     <lightning-button
                         label="Retry"
                         variant="brand"
-                        onclick={handleRetry}>
+                        onclick={handleRetry}
+                    >
                     </lightning-button>
                 </div>
-            </template>
+            </div>
+        </lightning-card>
+    </template>
 
-            <template lwc:elseif={submissionResult}>
-                <div class="success-panel">
-                    <lightning-icon
-                        icon-name="utility:success"
-                        alternative-text="Success"
-                        size="medium"
-                        variant="success">
-                    </lightning-icon>
-
-                    <h2
-                        class="slds-text-heading_medium slds-m-top_medium"
-                    >
-                        Expense claim submitted
-                    </h2>
-
-                    <p
-                        class="slds-m-top_small"
-                    >
-                        Reference:
-                        <strong>
-                            {successReference}
-                        </strong>
-                    </p>
-
-                    <p
-                        class="slds-m-top_x-small"
-                    >
-                        Status:
-                        {submissionResult.status}
-                    </p>
-
-                    <p
-                        class="slds-m-top_x-small"
-                    >
-                        Total amount:
-                        <lightning-formatted-number
-                            value={submissionResult.totalAmount}
-                            minimum-fraction-digits="2"
-                            maximum-fraction-digits="2">
-                        </lightning-formatted-number>
-                    </p>
-
-                    <div
-                        class="slds-m-top_large"
-                    >
-                        <lightning-button
-                            label="Create another claim"
-                            variant="brand"
-                            onclick={handleNewClaim}>
-                        </lightning-button>
-                    </div>
-                </div>
-            </template>
-
-            <template lwc:else>
-                <section
-                    class="claimant-panel slds-p-around_medium slds-m-bottom_large"
+    <!-- Submission result -->
+    <template lwc:elseif={hasSubmittedClaim}>
+        <lightning-card
+            title="Expense claim submitted"
+            icon-name="standard:expense"
+        >
+            <div class="slds-p-around_medium">
+                <div
+                    class="slds-notify slds-notify_alert slds-theme_success"
+                    role="status"
                 >
-                    <h2
-                        class="slds-text-heading_small"
+                    Your expense claim has been submitted.
+                </div>
+
+                <dl class="slds-list_horizontal slds-wrap slds-m-top_medium">
+                    <dt
+                        class="slds-item_label slds-truncate"
+                        title="Claim"
                     >
+                        Claim
+                    </dt>
+                    <dd class="slds-item_detail">
+                        {submittedClaim.claimNumber}
+                    </dd>
+
+                    <dt
+                        class="slds-item_label slds-truncate"
+                        title="Status"
+                    >
+                        Status
+                    </dt>
+                    <dd class="slds-item_detail">
+                        {submittedClaim.status}
+                    </dd>
+
+                    <dt
+                        class="slds-item_label slds-truncate"
+                        title="Total"
+                    >
+                        Total
+                    </dt>
+                    <dd class="slds-item_detail">
+                        <lightning-formatted-number
+                            value={submittedClaim.totalAmount}
+                            format-style="currency"
+                            currency-code="EUR"
+                        >
+                        </lightning-formatted-number>
+                    </dd>
+                </dl>
+
+                <div class="slds-m-top_large">
+                    <lightning-button
+                        label="New claim"
+                        variant="brand"
+                        onclick={handleNewClaim}
+                    >
+                    </lightning-button>
+                </div>
+            </div>
+        </lightning-card>
+    </template>
+
+    <!-- Expense claim form -->
+    <template lwc:elseif={hasConfiguration}>
+        <lightning-card
+            title="Expense claim"
+            icon-name="standard:expense"
+        >
+            <div class="slds-p-around_medium">
+
+                <!-- Claimant -->
+                <section class="slds-m-bottom_large">
+                    <h2 class="slds-text-heading_small slds-m-bottom_small">
                         Claimant
                     </h2>
 
-                    <p
-                        class="slds-m-top_x-small"
-                    >
-                        <strong>
-                            {claimantName}
-                        </strong>
-                    </p>
-
-                    <p>
-                        {claimantEmail}
-                    </p>
-                </section>
-
-                <lightning-textarea
-                    label="Claim description"
-                    value={claimDescription}
-                    onchange={handleClaimDescriptionChange}>
-                </lightning-textarea>
-
-                <template lwc:if={hasDatePolicyMessage}>
-                    <div
-                        class="slds-box slds-theme_shade slds-m-top_medium"
-                    >
+                    <div class="slds-grid slds-wrap slds-gutters">
                         <div
-                            class="slds-grid slds-gutters_small slds-grid_vertical-align-center"
+                            class="slds-col
+                                   slds-size_1-of-1
+                                   slds-medium-size_1-of-2"
                         >
-                            <div
-                                class="slds-col slds-grow-none"
-                            >
-                                <lightning-icon
-                                    icon-name="utility:info"
-                                    alternative-text="Expense date policy"
-                                    size="x-small">
-                                </lightning-icon>
-                            </div>
+                            <span class="slds-text-title">
+                                Name
+                            </span>
 
-                            <div
-                                class="slds-col"
-                            >
-                                <p
-                                    class="slds-text-body_small"
-                                >
-                                    {datePolicyMessage}
-                                </p>
+                            <div>
+                                {claimantName}
+                            </div>
+                        </div>
+
+                        <div
+                            class="slds-col
+                                   slds-size_1-of-1
+                                   slds-medium-size_1-of-2"
+                        >
+                            <span class="slds-text-title">
+                                Email
+                            </span>
+
+                            <div>
+                                {claimantEmail}
                             </div>
                         </div>
                     </div>
-                </template>
+                </section>
 
-                <div
-                    class="section-header slds-m-top_large"
+                <!-- Policy information -->
+                <section class="slds-m-bottom_large">
+                    <template lwc:if={futureDatesNotAllowed}>
+                        <div class="slds-text-body_small">
+                            Future expense dates are not allowed.
+                        </div>
+                    </template>
+
+                    <template lwc:if={maximumExpenseAgeMessage}>
+                        <div class="slds-text-body_small">
+                            {maximumExpenseAgeMessage}
+                        </div>
+                    </template>
+                </section>
+
+                <!-- Claim description -->
+                <lightning-textarea
+                    name="claimDescription"
+                    label="Claim description"
+                    value={claimDescription}
+                    onchange={handleClaimDescriptionChange}
                 >
-                    <h2
-                        class="slds-text-heading_medium"
-                    >
-                        Expenses
-                    </h2>
+                </lightning-textarea>
 
-                    <lightning-button
-                        label="Add expense"
-                        icon-name="utility:add"
-                        onclick={handleAddItem}>
-                    </lightning-button>
-                </div>
-
-                <template
-                    for:each={items}
-                    for:item="item"
-                >
-                    <article
-                        key={item.clientId}
-                        class="expense-item slds-m-top_medium slds-p-around_medium"
+                <!-- Expense items -->
+                <div class="slds-m-top_large">
+                    <template
+                        for:each={expenseItems}
+                        for:item="item"
                     >
-                        <div
-                            class="item-header"
+                        <section
+                            key={item.key}
+                            class="expense-item slds-box slds-m-bottom_medium"
                         >
-                            <h3
-                                class="slds-text-heading_small"
+                            <!-- Item heading -->
+                            <div
+                                class="slds-grid
+                                       slds-grid_align-spread
+                                       slds-grid_vertical-align-center
+                                       slds-m-bottom_medium"
                             >
-                                Expense {item.sequence}
-                            </h3>
+                                <h3 class="slds-text-heading_small">
+                                    Expense
+                                </h3>
 
-                            <template
-                                lwc:if={item.canDelete}
-                            >
                                 <lightning-button-icon
+                                    data-key={item.key}
                                     icon-name="utility:delete"
                                     alternative-text="Delete expense"
                                     title="Delete expense"
-                                    data-id={item.clientId}
-                                    onclick={handleDeleteItem}>
+                                    onclick={handleDeleteItem}
+                                >
                                 </lightning-button-icon>
-                            </template>
-                        </div>
-
-                        <div
-                            class="slds-grid slds-wrap slds-gutters slds-m-top_small"
-                        >
-                            <div
-                                class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2"
-                            >
-                                <lightning-input
-                                    type="date"
-                                    label="Expense date"
-                                    required
-                                    value={item.expenseDate}
-                                    data-id={item.clientId}
-                                    data-field="expenseDate"
-                                    onchange={handleItemInputChange}>
-                                </lightning-input>
                             </div>
 
-                            <div
-                                class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2"
-                            >
-                                <lightning-combobox
-                                    label="Expense type"
-                                    required
-                                    value={item.expenseTypeCode}
-                                    options={expenseTypeOptions}
-                                    data-id={item.clientId}
-                                    onchange={handleExpenseTypeChange}>
-                                </lightning-combobox>
-                            </div>
-
-                            <template
-                                lwc:if={item.hasExpenseType}
-                            >
+                            <!-- Date and type -->
+                            <div class="slds-grid slds-wrap slds-gutters">
                                 <div
-                                    class="slds-col slds-size_1-of-1 slds-m-top_small"
+                                    class="slds-col
+                                           slds-size_1-of-1
+                                           slds-medium-size_1-of-2"
+                                >
+                                    <lightning-input
+                                        data-key={item.key}
+                                        data-field="expenseDate"
+                                        type="date"
+                                        label="Expense date"
+                                        value={item.expenseDate}
+                                        onchange={handleItemInputChange}
+                                        required
+                                    >
+                                    </lightning-input>
+                                </div>
+
+                                <div
+                                    class="slds-col
+                                           slds-size_1-of-1
+                                           slds-medium-size_1-of-2"
+                                >
+                                    <lightning-combobox
+                                        data-key={item.key}
+                                        data-field="expenseTypeCode"
+                                        name="expenseType"
+                                        label="Expense type"
+                                        value={item.expenseTypeCode}
+                                        options={expenseTypeOptions}
+                                        onchange={handleExpenseTypeChange}
+                                        required
+                                    >
+                                    </lightning-combobox>
+                                </div>
+                            </div>
+
+                            <!-- Description -->
+                            <div class="slds-m-top_medium">
+                                <lightning-input
+                                    data-key={item.key}
+                                    data-field="description"
+                                    type="text"
+                                    label="Description"
+                                    value={item.description}
+                                    onchange={handleItemInputChange}
+                                    required={item.descriptionRequired}
+                                >
+                                </lightning-input>
+
+                                <template lwc:if={item.descriptionRequired}>
+                                    <div class="slds-m-top_x-small">
+                                        <lightning-badge
+                                            label="Description required"
+                                        >
+                                        </lightning-badge>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- Amount -->
+                            <template lwc:if={item.isAmount}>
+                                <div class="slds-m-top_medium">
+                                    <lightning-input
+                                        data-key={item.key}
+                                        data-field="claimedAmount"
+                                        type="number"
+                                        label="Amount"
+                                        value={item.claimedAmount}
+                                        min="0"
+                                        max={item.maximumAmount}
+                                        step="0.01"
+                                        formatter="currency"
+                                        onchange={handleItemInputChange}
+                                        required
+                                    >
+                                    </lightning-input>
+                                </div>
+                            </template>
+
+                            <!-- Distance -->
+                            <template lwc:if={item.isDistance}>
+                                <div
+                                    class="slds-grid
+                                           slds-wrap
+                                           slds-gutters
+                                           slds-m-top_medium"
                                 >
                                     <div
-                                        class="slds-grid slds-wrap slds-gutters_x-small"
+                                        class="slds-col
+                                               slds-size_1-of-1
+                                               slds-medium-size_1-of-2"
                                     >
-                                        <template
-                                            lwc:if={item.descriptionRequired}
+                                        <lightning-input
+                                            data-key={item.key}
+                                            data-field="distance"
+                                            type="number"
+                                            label="Distance"
+                                            value={item.distance}
+                                            min="0"
+                                            step="0.01"
+                                            onchange={handleItemInputChange}
+                                            required
                                         >
-                                            <div
-                                                class="slds-col"
-                                            >
-                                                <lightning-badge
-                                                    label="Description required">
-                                                </lightning-badge>
-                                            </div>
-                                        </template>
+                                        </lightning-input>
 
-                                        <template
-                                            lwc:if={item.receiptRequired}
-                                        >
+                                        <template lwc:if={item.distanceUnit}>
                                             <div
-                                                class="slds-col"
+                                                class="slds-text-body_small
+                                                       slds-m-top_x-small"
                                             >
-                                                <lightning-badge
-                                                    label="Receipt required">
-                                                </lightning-badge>
+                                                Unit: {item.distanceUnit}
                                             </div>
                                         </template>
                                     </div>
 
-                                    <template
-                                        lwc:if={item.hasMaximumAmount}
+                                    <div
+                                        class="slds-col
+                                               slds-size_1-of-1
+                                               slds-medium-size_1-of-2"
                                     >
-                                        <p
-                                            class="slds-text-body_small slds-text-color_weak slds-m-top_x-small"
+                                        <lightning-input
+                                            type="number"
+                                            label="Calculated amount"
+                                            value={item.calculatedAmount}
+                                            step="0.01"
+                                            formatter="currency"
+                                            disabled
                                         >
-                                            Maximum amount:
-                                            <lightning-formatted-number
-                                                value={item.maximumAmount}
-                                                minimum-fraction-digits="2"
-                                                maximum-fraction-digits="2">
-                                            </lightning-formatted-number>
-                                        </p>
-                                    </template>
+                                        </lightning-input>
+                                    </div>
                                 </div>
                             </template>
 
-                            <div
-                                class="slds-col slds-size_1-of-1 slds-m-top_small"
-                            >
+                            <!-- Business purpose -->
+                            <div class="slds-m-top_medium">
                                 <lightning-input
-                                    type="text"
-                                    label="Description"
-                                    required={item.descriptionRequired}
-                                    value={item.description}
-                                    data-id={item.clientId}
-                                    data-field="description"
-                                    onchange={handleItemInputChange}>
-                                </lightning-input>
-                            </div>
-
-                            <div
-                                class="slds-col slds-size_1-of-1 slds-m-top_small"
-                            >
-                                <lightning-input
+                                    data-key={item.key}
+                                    data-field="businessPurpose"
                                     type="text"
                                     label="Business purpose"
                                     value={item.businessPurpose}
-                                    data-id={item.clientId}
-                                    data-field="businessPurpose"
-                                    onchange={handleItemInputChange}>
+                                    onchange={handleItemInputChange}
+                                >
                                 </lightning-input>
                             </div>
 
-                            <template
-                                lwc:if={item.isAmount}
-                            >
-                                <div
-                                    class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2 slds-m-top_small"
-                                >
-                                    <lightning-input
-                                        type="number"
-                                        label="Claimed amount"
-                                        required
-                                        min="0.01"
-                                        max={item.maximumAmount}
-                                        step="0.01"
-                                        value={item.claimedAmount}
-                                        data-id={item.clientId}
-                                        data-field="claimedAmount"
-                                        onchange={handleItemInputChange}>
-                                    </lightning-input>
-                                </div>
-                            </template>
-
-                            <template
-                                lwc:if={item.isDistance}
-                            >
-                                <div
-                                    class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2 slds-m-top_small"
-                                >
-                                    <lightning-input
-                                        type="number"
-                                        label="Distance"
-                                        required
-                                        min="0.01"
-                                        step="0.01"
-                                        value={item.distance}
-                                        data-id={item.clientId}
-                                        data-field="distance"
-                                        onchange={handleItemInputChange}>
-                                    </lightning-input>
-                                </div>
-
-                                <div
-                                    class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2 slds-m-top_small"
-                                >
-                                    <lightning-input
-                                        type="number"
-                                        label="Calculated amount"
-                                        step="0.01"
-                                        value={item.claimedAmount}
-                                        disabled>
-                                    </lightning-input>
-                                </div>
-
-                                <template
-                                    lwc:if={item.hasUnitRate}
-                                >
-                                    <div
-                                        class="slds-col slds-size_1-of-1 slds-m-top_small"
+                            <!-- Policy calculation -->
+                            <template lwc:if={item.isPolicyLoading}>
+                                <div class="slds-m-top_medium">
+                                    <lightning-spinner
+                                        alternative-text="Calculating expense"
+                                        size="small"
                                     >
-                                        <p
-                                            class="slds-text-body_small slds-text-color_weak"
-                                        >
-                                            Reimbursement rate:
-                                            <lightning-formatted-number
-                                                value={item.unitRate}
-                                                minimum-fraction-digits="2"
-                                                maximum-fraction-digits="4">
-                                            </lightning-formatted-number>
-                                            per {item.distanceUnit}
-                                        </p>
-                                    </div>
-                                </template>
+                                    </lightning-spinner>
+                                </div>
                             </template>
 
-                            <template
-                                lwc:if={item.hasExpenseType}
-                            >
+                            <!-- Policy error -->
+                            <template lwc:if={item.policyError}>
                                 <div
-                                    class="slds-col slds-size_1-of-1 slds-m-top_medium"
+                                    class="slds-notify
+                                           slds-notify_alert
+                                           slds-alert_error
+                                           slds-m-top_medium"
+                                    role="alert"
                                 >
+                                    {item.policyError}
+                                </div>
+                            </template>
+
+                            <!-- Receipt -->
+                            <template lwc:if={item.showReceiptUpload}>
+                                <div class="slds-m-top_large">
+                                    <div
+                                        class="slds-grid
+                                               slds-grid_vertical-align-center
+                                               slds-m-bottom_x-small"
+                                    >
+                                        <span class="slds-text-title_bold">
+                                            Receipt
+                                        </span>
+
+                                        <template lwc:if={item.receiptRequired}>
+                                            <span class="slds-m-left_x-small">
+                                                <lightning-badge
+                                                    label="Required"
+                                                >
+                                                </lightning-badge>
+                                            </span>
+                                        </template>
+                                    </div>
+
                                     <lightning-file-upload
-                                        label="Receipt"
-                                        name="receiptUploader"
+                                        data-key={item.key}
+                                        label="Upload receipt"
                                         accept={acceptedReceiptFormats}
-                                        multiple
-                                        file-field-name={receiptKeyFieldApiName}
+                                        file-field-name={receiptUploadFieldName}
                                         file-field-value={item.receiptUploadKey}
-                                        disabled={item.isReceiptUploadDisabled}
-                                        data-id={item.clientId}
-                                        onuploadfinished={handleReceiptUploadFinished}>
+                                        disabled={item.receiptUploadDisabled}
+                                        onuploadfinished={handleReceiptUploadFinished}
+                                    >
                                     </lightning-file-upload>
 
-                                    <template
-                                        lwc:if={item.isPreparingReceiptUpload}
-                                    >
-                                        <p
-                                            class="slds-text-body_small slds-text-color_weak slds-m-top_x-small"
-                                        >
-                                            Preparing receipt upload…
-                                        </p>
-                                    </template>
-
-                                    <template
-                                        lwc:if={item.receiptUploadError}
-                                    >
+                                    <template lwc:if={item.hasReceipts}>
                                         <div
-                                            class="slds-m-top_x-small"
-                                        >
-                                            <p
-                                                class="slds-text-color_error"
-                                                role="alert"
-                                            >
-                                                {item.receiptUploadError}
-                                            </p>
-
-                                            <lightning-button
-                                                class="slds-m-top_x-small"
-                                                label="Retry receipt upload"
-                                                data-id={item.clientId}
-                                                onclick={handleRetryReceiptUpload}>
-                                            </lightning-button>
-                                        </div>
-                                    </template>
-
-                                    <template
-                                        lwc:if={item.hasReceipts}
-                                    >
-                                        <div
-                                            class="slds-m-top_x-small"
+                                            class="slds-grid
+                                                   slds-grid_vertical-align-center
+                                                   slds-m-top_x-small"
                                         >
                                             <lightning-icon
                                                 icon-name="utility:success"
-                                                alternative-text="Receipt uploaded"
-                                                size="xx-small"
-                                                variant="success">
+                                                size="x-small"
+                                                alternative-text="Uploaded"
+                                            >
                                             </lightning-icon>
 
                                             <span
-                                                class="slds-text-body_small slds-m-left_x-small"
+                                                class="slds-text-body_small
+                                                       slds-m-left_x-small"
                                             >
                                                 Uploaded:
                                                 {item.receiptSummary}
@@ -452,108 +430,68 @@
                                     </template>
                                 </div>
                             </template>
-                        </div>
+                        </section>
+                    </template>
+                </div>
 
-                        <div
-                            class="line-summary slds-m-top_medium slds-p-top_small"
-                        >
-                            <span
-                                class="slds-text-title_bold"
-                            >
-                                Line total
-                            </span>
-
-                            <span
-                                class="slds-text-heading_small"
-                            >
-                                <lightning-formatted-number
-                                    value={item.lineTotal}
-                                    minimum-fraction-digits="2"
-                                    maximum-fraction-digits="2">
-                                </lightning-formatted-number>
-                            </span>
-                        </div>
-
-                        <template
-                            lwc:if={item.isCalculating}
-                        >
-                            <div
-                                class="slds-m-top_small slds-text-color_weak"
-                            >
-                                Calculating expense policy…
-                            </div>
-                        </template>
-
-                        <template
-                            lwc:if={item.policyError}
-                        >
-                            <div
-                                class="slds-text-color_error slds-m-top_small"
-                                role="alert"
-                            >
-                                {item.policyError}
-                            </div>
-                        </template>
-                    </article>
-                </template>
-
-                <div
-                    class="claim-summary slds-box slds-theme_shade slds-m-top_large"
-                >
-                    <div>
-                        <p
-                            class="slds-text-title"
-                        >
-                            Claim total
-                        </p>
-
-                        <p
-                            class="slds-text-body_small slds-text-color_weak"
-                        >
-                            Sum of all current expense lines
-                        </p>
-                    </div>
-
-                    <div
-                        class="slds-text-heading_medium"
+                <!-- Add expense -->
+                <div class="slds-m-top_medium">
+                    <lightning-button
+                        label="Add expense"
+                        icon-name="utility:add"
+                        variant="neutral"
+                        onclick={handleAddItem}
                     >
+                    </lightning-button>
+                </div>
+
+                <!-- Total -->
+                <div
+                    class="slds-grid
+                           slds-grid_align-end
+                           slds-m-top_large"
+                >
+                    <div class="slds-text-heading_medium">
+                        Total:
+
                         <lightning-formatted-number
                             data-role="claim-total"
                             value={claimTotal}
-                            minimum-fraction-digits="2"
-                            maximum-fraction-digits="2">
+                            format-style="currency"
+                            currency-code="EUR"
+                        >
                         </lightning-formatted-number>
                     </div>
                 </div>
 
-                <div
-                    class="form-actions slds-m-top_large"
-                >
-                    <lightning-button
-                        label="Add expense"
-                        icon-name="utility:add"
-                        onclick={handleAddItem}>
-                    </lightning-button>
+                <!-- Submission error -->
+                <template lwc:if={submissionError}>
+                    <div
+                        class="slds-notify
+                               slds-notify_alert
+                               slds-alert_error
+                               slds-m-top_medium"
+                        role="alert"
+                    >
+                        {submissionError}
+                    </div>
+                </template>
 
+                <!-- Submit -->
+                <div
+                    class="slds-grid
+                           slds-grid_align-end
+                           slds-m-top_large"
+                >
                     <lightning-button
                         label="Submit claim"
                         variant="brand"
-                        disabled={isSubmitDisabled}
-                        onclick={handleSubmit}>
+                        onclick={handleSubmit}
+                        disabled={submitDisabled}
+                    >
                     </lightning-button>
                 </div>
-
-                <template lwc:if={isSubmitting}>
-                    <div
-                        class="submission-spinner"
-                    >
-                        <lightning-spinner
-                            alternative-text="Submitting expense claim"
-                            size="medium">
-                        </lightning-spinner>
-                    </div>
-                </template>
-            </template>
-        </div>
-    </lightning-card>
+            </div>
+        </lightning-card>
+    </template>
 </template>

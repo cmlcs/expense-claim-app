@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Verified_At__c</fullName>
+    <description>
+        Records when the claimant successfully completed email verification. This provides an audit timestamp showing when the application established the verified Contact identity used for the guest expense claim session.
+    </description>
+    <inlineHelpText>
+        Populated automatically after a valid verification code is submitted.
+    </inlineHelpText>
+    <label>Verified At</label>
+    <required>false</required>
+    <type>DateTime</type>
+</CustomField>

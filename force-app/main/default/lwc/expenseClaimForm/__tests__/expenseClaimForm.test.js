@@ -6,6 +6,15 @@ import applyPolicy from '@salesforce/apex/ExpenseClaimController.applyPolicy';
 import submitClaim from '@salesforce/apex/ExpenseClaimController.submitClaim';
 import createReceiptUploadKey from '@salesforce/apex/ExpenseClaimController.createReceiptUploadKey';
 
+import guestGetConfiguration from
+    '@salesforce/apex/ExpenseClaimGuestController.getConfiguration';
+import guestApplyPolicy from
+    '@salesforce/apex/ExpenseClaimGuestController.applyPolicy';
+import guestSubmitClaim from
+    '@salesforce/apex/ExpenseClaimGuestController.submitClaim';
+import guestCreateReceiptUploadKey from
+    '@salesforce/apex/ExpenseClaimGuestController.createReceiptUploadKey';
+
 jest.mock(
     '@salesforce/apex/ExpenseClaimController.getConfiguration',
     () => ({
@@ -39,6 +48,38 @@ jest.mock(
 );
 
 jest.mock(
+    '@salesforce/apex/ExpenseClaimGuestController.getConfiguration',
+    () => ({
+        default: jest.fn()
+    }),
+    { virtual: true }
+);
+
+jest.mock(
+    '@salesforce/apex/ExpenseClaimGuestController.applyPolicy',
+    () => ({
+        default: jest.fn()
+    }),
+    { virtual: true }
+);
+
+jest.mock(
+    '@salesforce/apex/ExpenseClaimGuestController.submitClaim',
+    () => ({
+        default: jest.fn()
+    }),
+    { virtual: true }
+);
+
+jest.mock(
+    '@salesforce/apex/ExpenseClaimGuestController.createReceiptUploadKey',
+    () => ({
+        default: jest.fn()
+    }),
+    { virtual: true }
+);
+
+jest.mock(
     '@salesforce/schema/ContentVersion.Expense_Receipt_Key_fileupload__c',
     () => ({
         default: {
@@ -54,6 +95,9 @@ const RECEIPT_UPLOAD_KEY =
 
 const SECOND_RECEIPT_UPLOAD_KEY =
     'fedcba9876543210'.repeat(4);
+
+const GUEST_ACCESS_TOKEN =
+    'abcdef0123456789'.repeat(4);
 
 const CONFIGURATION = {
     claimantName: 'Test Claimant',
@@ -128,6 +172,23 @@ function createComponent() {
             is: ExpenseClaimForm
         }
     );
+
+    document.body.appendChild(element);
+
+    return element;
+}
+
+function createGuestComponent() {
+    const element = createElement(
+        'c-expense-claim-form',
+        {
+            is: ExpenseClaimForm
+        }
+    );
+
+    element.guestMode = true;
+    element.accessToken =
+        GUEST_ACCESS_TOKEN;
 
     document.body.appendChild(element);
 
@@ -282,6 +343,104 @@ function distancePolicyResponse(
     };
 }
 
+async function populateMealClaim(
+    element
+) {
+    const claimDescription =
+        element.shadowRoot.querySelector(
+            'lightning-textarea'
+        );
+
+    changeInput(
+        claimDescription,
+        ' November expenses '
+    );
+
+    const expenseDate =
+        findInput(
+            element,
+            'expenseDate'
+        );
+
+    changeInput(
+        expenseDate,
+        '2026-11-18'
+    );
+
+    await flushPromises();
+
+    selectExpenseType(
+        element,
+        'Meals'
+    );
+
+    await flushPromises();
+
+    const description =
+        findInput(
+            element,
+            'description'
+        );
+
+    changeInput(
+        description,
+        ' Team lunch '
+    );
+
+    const businessPurpose =
+        findInput(
+            element,
+            'businessPurpose'
+        );
+
+    changeInput(
+        businessPurpose,
+        'Donor meeting'
+    );
+
+    const claimedAmount =
+        findInput(
+            element,
+            'claimedAmount'
+        );
+
+    changeInput(
+        claimedAmount,
+        '37.50'
+    );
+
+    await flushPromises();
+
+    makeFormValid(
+        element
+    );
+}
+
+function expectedMealClaimRequest() {
+    return {
+        description:
+            'November expenses',
+        items: [
+            {
+                expenseDate:
+                    '2026-11-18',
+                description:
+                    'Team lunch',
+                expenseTypeCode:
+                    'Meals',
+                claimedAmount:
+                    37.5,
+                distance:
+                    null,
+                businessPurpose:
+                    'Donor meeting',
+                receiptUploadKey:
+                    RECEIPT_UPLOAD_KEY
+            }
+        ]
+    };
+}
+
 describe(
     'c-expense-claim-form',
     () => {
@@ -291,6 +450,14 @@ describe(
             );
 
             createReceiptUploadKey.mockResolvedValue(
+                RECEIPT_UPLOAD_KEY
+            );
+
+            guestGetConfiguration.mockResolvedValue(
+                cloneConfiguration()
+            );
+
+            guestCreateReceiptUploadKey.mockResolvedValue(
                 RECEIPT_UPLOAD_KEY
             );
         });
@@ -997,77 +1164,7 @@ describe(
 
                 await flushPromises();
 
-                const claimDescription =
-                    element.shadowRoot
-                        .querySelector(
-                            'lightning-textarea'
-                        );
-
-                changeInput(
-                    claimDescription,
-                    ' November expenses '
-                );
-
-                const expenseDate =
-                    findInput(
-                        element,
-                        'expenseDate'
-                    );
-
-                changeInput(
-                    expenseDate,
-                    '2026-11-18'
-                );
-
-                await flushPromises();
-
-                selectExpenseType(
-                    element,
-                    'Meals'
-                );
-
-                await flushPromises();
-
-                const description =
-                    findInput(
-                        element,
-                        'description'
-                    );
-
-                changeInput(
-                    description,
-                    ' Team lunch '
-                );
-
-                await flushPromises();
-
-                const businessPurpose =
-                    findInput(
-                        element,
-                        'businessPurpose'
-                    );
-
-                changeInput(
-                    businessPurpose,
-                    'Donor meeting'
-                );
-
-                await flushPromises();
-
-                const claimedAmount =
-                    findInput(
-                        element,
-                        'claimedAmount'
-                    );
-
-                changeInput(
-                    claimedAmount,
-                    '37.50'
-                );
-
-                await flushPromises();
-
-                makeFormValid(
+                await populateMealClaim(
                     element
                 );
 
@@ -1091,29 +1188,187 @@ describe(
                 expect(
                     submitClaim
                 ).toHaveBeenCalledWith({
-                    request: {
-                        description:
-                            'November expenses',
-                        items: [
-                            {
-                                expenseDate:
-                                    '2026-11-18',
-                                description:
-                                    'Team lunch',
-                                expenseTypeCode:
-                                    'Meals',
-                                claimedAmount:
-                                    37.5,
-                                distance:
-                                    null,
-                                businessPurpose:
-                                    'Donor meeting',
-                                receiptUploadKey:
-                                    RECEIPT_UPLOAD_KEY
-                            }
-                        ]
+                    request:
+                        expectedMealClaimRequest()
+                });
+
+                expect(
+                    element.shadowRoot
+                        .textContent
+                ).toContain(
+                    'EC-000001'
+                );
+
+                expect(
+                    element.shadowRoot
+                        .textContent
+                ).toContain(
+                    'Submitted'
+                );
+            }
+        );
+  
+
+        it(
+            'uses guest endpoints to initialize the form in guest mode',
+            async () => {
+                const element =
+                    createGuestComponent();
+
+                await flushPromises();
+
+                expect(
+                    guestGetConfiguration
+                ).toHaveBeenCalledTimes(
+                    1
+                );
+
+                expect(
+                    guestGetConfiguration
+                ).toHaveBeenCalledWith({
+                    accessToken:
+                        GUEST_ACCESS_TOKEN
+                });
+
+                expect(
+                    guestCreateReceiptUploadKey
+                ).toHaveBeenCalledTimes(
+                    1
+                );
+
+                expect(
+                    guestCreateReceiptUploadKey
+                ).toHaveBeenCalledWith({
+                    accessToken:
+                        GUEST_ACCESS_TOKEN
+                });
+
+                expect(
+                    getConfiguration
+                ).not.toHaveBeenCalled();
+
+                expect(
+                    createReceiptUploadKey
+                ).not.toHaveBeenCalled();
+
+                expect(
+                    element.shadowRoot
+                        .textContent
+                ).toContain(
+                    'Test Claimant'
+                );
+
+                expect(
+                    element.shadowRoot
+                        .textContent
+                ).toContain(
+                    'claimant@example.com'
+                );
+            }
+        );
+
+        it(
+            'uses the guest policy endpoint with the access token',
+            async () => {
+                guestApplyPolicy.mockResolvedValueOnce(
+                    amountPolicyResponse()
+                );
+
+                const element =
+                    createGuestComponent();
+
+                await flushPromises();
+
+                selectExpenseType(
+                    element,
+                    'Meals'
+                );
+
+                await flushPromises();
+
+                expect(
+                    guestApplyPolicy
+                ).toHaveBeenCalledTimes(
+                    1
+                );
+
+                expect(
+                    guestApplyPolicy
+                ).toHaveBeenCalledWith({
+                    accessToken:
+                        GUEST_ACCESS_TOKEN,
+                    itemDto: {
+                        expenseDate: null,
+                        description: null,
+                        expenseTypeCode:
+                            'Meals',
+                        claimedAmount: null,
+                        distance: null,
+                        businessPurpose:
+                            null,
+                        receiptUploadKey:
+                            RECEIPT_UPLOAD_KEY
                     }
                 });
+
+                expect(
+                    applyPolicy
+                ).not.toHaveBeenCalled();
+            }
+        );
+
+        it(
+            'submits a guest claim with the access token',
+            async () => {
+                guestApplyPolicy.mockResolvedValueOnce(
+                    amountPolicyResponse({
+                        expenseDate:
+                            '2026-11-18'
+                    })
+                );
+
+                guestSubmitClaim.mockResolvedValueOnce(
+                    SUBMISSION_RESULT
+                );
+
+                const element =
+                    createGuestComponent();
+
+                await flushPromises();
+
+                await populateMealClaim(
+                    element
+                );
+
+                const submitButton =
+                    findButton(
+                        element,
+                        'Submit claim'
+                    );
+
+                submitButton.click();
+
+                await flushPromises();
+                await flushPromises();
+
+                expect(
+                    guestSubmitClaim
+                ).toHaveBeenCalledTimes(
+                    1
+                );
+
+                expect(
+                    guestSubmitClaim
+                ).toHaveBeenCalledWith({
+                    accessToken:
+                        GUEST_ACCESS_TOKEN,
+                    request:
+                        expectedMealClaimRequest()
+                });
+
+                expect(
+                    submitClaim
+                ).not.toHaveBeenCalled();
 
                 expect(
                     element.shadowRoot

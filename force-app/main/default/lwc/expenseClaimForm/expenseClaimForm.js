@@ -1,34 +1,100 @@
-import { LightningElement } from 'lwc';
+import {
+    LightningElement,
+    api
+} from 'lwc';
 
-import getConfiguration from '@salesforce/apex/ExpenseClaimController.getConfiguration';
-import applyPolicy from '@salesforce/apex/ExpenseClaimController.applyPolicy';
-import submitClaim from '@salesforce/apex/ExpenseClaimController.submitClaim';
-import createReceiptUploadKey from '@salesforce/apex/ExpenseClaimController.createReceiptUploadKey';
+import { ShowToastEvent } from
+    'lightning/platformShowToastEvent';
 
-import RECEIPT_KEY_FIELD from '@salesforce/schema/ContentVersion.Expense_Receipt_Key_fileupload__c';
+import RECEIPT_UPLOAD_KEY_FIELD from
+    '@salesforce/schema/ContentVersion.Expense_Receipt_Key_fileupload__c';
 
-import { ShowToastEvent } from 'lightning/platformShowToastEvent';
+/*
+ * Authenticated endpoints.
+ */
+import authenticatedGetConfiguration from
+    '@salesforce/apex/ExpenseClaimController.getConfiguration';
 
-const METHOD_AMOUNT = 'Amount';
-const METHOD_DISTANCE = 'Distance';
+import authenticatedApplyPolicy from
+    '@salesforce/apex/ExpenseClaimController.applyPolicy';
+
+import authenticatedCreateReceiptUploadKey from
+    '@salesforce/apex/ExpenseClaimController.createReceiptUploadKey';
+
+import authenticatedSubmitClaim from
+    '@salesforce/apex/ExpenseClaimController.submitClaim';
+
+/*
+ * Guest endpoints.
+ */
+import guestGetConfiguration from
+    '@salesforce/apex/ExpenseClaimGuestController.getConfiguration';
+
+import guestApplyPolicy from
+    '@salesforce/apex/ExpenseClaimGuestController.applyPolicy';
+
+import guestCreateReceiptUploadKey from
+    '@salesforce/apex/ExpenseClaimGuestController.createReceiptUploadKey';
+
+import guestSubmitClaim from
+    '@salesforce/apex/ExpenseClaimGuestController.submitClaim';
+
+const CALCULATION_METHOD_AMOUNT =
+    'Amount';
+
+const CALCULATION_METHOD_DISTANCE =
+    'Distance';
+
+const ACCEPTED_RECEIPT_FORMATS = [
+    '.pdf',
+    '.png',
+    '.jpg',
+    '.jpeg',
+    '.heic',
+    '.heif'
+];
 
 export default class ExpenseClaimForm extends LightningElement {
+
+    /*
+     * When guestMode is false, the existing authenticated controller is used.
+     * When guestMode is true, every server operation goes through the
+     * dedicated guest controller and includes the verified access token.
+     */
+    @api guestMode = false;
+    @api accessToken;
+
     configuration;
+
+    expenseItems = [];
+
     claimDescription = '';
-    items = [];
 
     isLoading = true;
     isSubmitting = false;
 
     loadError;
-    submissionResult;
+    submissionError;
 
-    nextItemNumber = 1;
-    policyRequestSequence = 0;
+    submittedClaim;
+
+    nextItemKey = 1;
+
+    acceptedReceiptFormats =
+        ACCEPTED_RECEIPT_FORMATS;
+
+    receiptUploadFieldName =
+        RECEIPT_UPLOAD_KEY_FIELD.fieldApiName;
 
     connectedCallback() {
         this.loadConfiguration();
     }
+
+    /*
+     * ---------------------------------------------------------------------
+     * Configuration
+     * ---------------------------------------------------------------------
+     */
 
     async loadConfiguration() {
         this.isLoading = true;
@@ -36,122 +102,210 @@ export default class ExpenseClaimForm extends LightningElement {
 
         try {
             this.configuration =
-                await getConfiguration();
+                await this.getConfigurationFromServer();
 
             const item =
-                this.createEmptyItem();
+                this.createExpenseItem();
 
-            this.items =
-                this.normalizeItems([
-                    item
-                ]);
+            this.expenseItems = [
+                item
+            ];
 
-            await this.prepareReceiptUploadKey(
-                item.clientId
+            /*
+            * Receipt-key preparation must not block the initial form render.
+            *
+            * The row can render immediately. The upload control becomes
+            * available as soon as the server-generated key arrives.
+            */
+            this.prepareReceiptUploadKey(
+                item.key
             );
         } catch (error) {
+            this.configuration =
+                undefined;
+
+            this.expenseItems =
+                [];
+
             this.loadError =
-                this.reduceError(error);
+                this.reduceError(
+                    error
+                );
         } finally {
             this.isLoading = false;
         }
     }
 
+
+    handleRetry() {
+        this.loadConfiguration();
+    }
+
+    /*
+     * ---------------------------------------------------------------------
+     * Server adapters
+     * ---------------------------------------------------------------------
+     */
+
+    async getConfigurationFromServer() {
+        if (this.guestMode) {
+            return guestGetConfiguration({
+                accessToken:
+                    this.accessToken
+            });
+        }
+
+        return authenticatedGetConfiguration();
+    }
+
+    async applyPolicyOnServer(
+        itemDto
+    ) {
+        if (this.guestMode) {
+            return guestApplyPolicy({
+                accessToken:
+                    this.accessToken,
+                itemDto
+            });
+        }
+
+        return authenticatedApplyPolicy({
+            itemDto
+        });
+    }
+
+    async createReceiptUploadKeyOnServer() {
+        if (this.guestMode) {
+            return guestCreateReceiptUploadKey({
+                accessToken:
+                    this.accessToken
+            });
+        }
+
+        return authenticatedCreateReceiptUploadKey();
+    }
+
+    async submitClaimToServer(
+        request
+    ) {
+        if (this.guestMode) {
+            return guestSubmitClaim({
+                accessToken:
+                    this.accessToken,
+                request
+            });
+        }
+
+        return authenticatedSubmitClaim({
+            request
+        });
+    }
+
+    /*
+     * ---------------------------------------------------------------------
+     * Configuration getters
+     * ---------------------------------------------------------------------
+     */
+
     get claimantName() {
         return (
             this.configuration
-                ?.claimantName || ''
+                ?.claimantName ||
+            ''
         );
     }
 
     get claimantEmail() {
         return (
             this.configuration
-                ?.claimantEmail || ''
+                ?.claimantEmail ||
+            ''
         );
     }
 
     get expenseTypeOptions() {
         return (
             this.configuration
-                ?.expenseTypes || []
-        ).map((expenseType) => ({
-            label: expenseType.label,
-            value:
-                expenseType.developerName
-        }));
-    }
+                ?.expenseTypes ||
+            []
+        ).map(
+            (expenseType) => ({
+                label:
+                    expenseType.label,
 
-    get receiptKeyFieldApiName() {
-        return RECEIPT_KEY_FIELD.fieldApiName;
-    }
-
-    get acceptedReceiptFormats() {
-        return [
-            '.pdf',
-            '.png',
-            '.jpg',
-            '.jpeg',
-            '.heic',
-            '.heif'
-        ];
-    }
-
-    get claimTotal() {
-        return this.items.reduce(
-            (total, item) =>
-                total +
-                this.toFiniteNumber(
-                    item.claimedAmount
-                ),
-            0
+                value:
+                    expenseType
+                        .developerName
+            })
         );
     }
 
-    get datePolicyMessage() {
-        const messages = [];
+    get hasConfiguration() {
+        return Boolean(
+            this.configuration
+        );
+    }
 
-        if (
+    get hasLoadError() {
+        return Boolean(
+            this.loadError
+        );
+    }
+
+    get hasSubmittedClaim() {
+        return Boolean(
+            this.submittedClaim
+        );
+    }
+
+    get futureDatesNotAllowed() {
+        return (
             this.configuration &&
-            !this.configuration
-                .allowFutureExpenseDates
-        ) {
-            messages.push(
-                'Future expense dates are not allowed.'
-            );
-        }
+            this.configuration
+                .allowFutureExpenseDates ===
+                false
+        );
+    }
 
+    get maximumExpenseAgeMessage() {
         const maximumAge =
             this.configuration
                 ?.maximumExpenseAgeDays;
 
         if (
-            maximumAge !== null &&
-            maximumAge !== undefined
+            maximumAge === null ||
+            maximumAge === undefined
         ) {
-            messages.push(
-                `Expenses can be up to ${maximumAge} days old.`
-            );
+            return '';
         }
 
-        return messages.join(' ');
-    }
-
-    get hasDatePolicyMessage() {
-        return Boolean(
-            this.datePolicyMessage
+        return (
+            `Expenses can be up to ${maximumAge} days old.`
         );
     }
 
-    get hasPolicyCalculation() {
-        return this.items.some(
-            (item) =>
-                item.isCalculating
+    /*
+     * ---------------------------------------------------------------------
+     * Claim totals and state
+     * ---------------------------------------------------------------------
+     */
+
+    get claimTotal() {
+        return this.expenseItems.reduce(
+            (
+                total,
+                item
+            ) =>
+                total +
+                this.itemAmount(
+                    item
+                ),
+            0
         );
     }
 
     get hasPolicyErrors() {
-        return this.items.some(
+        return this.expenseItems.some(
             (item) =>
                 Boolean(
                     item.policyError
@@ -159,246 +313,221 @@ export default class ExpenseClaimForm extends LightningElement {
         );
     }
 
+    get hasPendingPolicyRequests() {
+        return this.expenseItems.some(
+            (item) =>
+                Boolean(
+                    item.isPolicyLoading
+                )
+        );
+    }
+
     get hasMissingRequiredReceipts() {
-        return this.items.some(
+        return this.expenseItems.some(
             (item) =>
                 item.receiptRequired &&
-                !item.hasReceipts
+                !item.receiptUploaded
         );
     }
 
-    get isSubmitDisabled() {
+    get submitDisabled() {
         return (
-            this.isLoading ||
             this.isSubmitting ||
-            this.hasPolicyCalculation ||
+            this.isLoading ||
+            this.hasPendingPolicyRequests ||
             this.hasPolicyErrors ||
             this.hasMissingRequiredReceipts ||
-            this.items.length === 0
+            this.expenseItems.length ===
+                0
         );
     }
 
-    get successReference() {
-        return (
-            this.submissionResult
-                ?.claimNumber ||
-            this.submissionResult
-                ?.claimId ||
-            ''
-        );
-    }
+    /*
+     * ---------------------------------------------------------------------
+     * Expense Item lifecycle
+     * ---------------------------------------------------------------------
+     */
 
-    createEmptyItem() {
-        return this.decorateItem({
-            clientId:
-                `item-${this.nextItemNumber++}`,
+    createExpenseItem() {
+        const item = {
+            key:
+                this.nextItemKey,
 
-            expenseDate: null,
-            description: '',
-            businessPurpose: '',
-
-            expenseTypeCode: '',
-            expenseTypeLabel: null,
-
-            calculationMethod: null,
-
-            claimedAmount: null,
-
-            distance: null,
-            distanceUnit: null,
-            unitRate: null,
-
-            receiptRequired: false,
-
-            receiptUploadKey: null,
-            receiptNames: [],
-            isPreparingReceiptUpload: true,
-            receiptUploadError: null,
-
-            isCalculating: false,
-            policyError: null,
-            policyRequestId: null
-        });
-    }
-
-    decorateItem(item) {
-        const expenseType =
-            this.findExpenseType(
-                item.expenseTypeCode
-            );
-
-        const calculationMethod =
-            expenseType
-                ?.calculationMethod ||
-            item.calculationMethod ||
-            null;
-
-        const maximumAmount =
-            expenseType
-                ?.maximumAmount ??
-            null;
-
-        const unitRate =
-            item.unitRate ??
-            expenseType?.rate ??
-            null;
-
-        const distanceUnit =
-            item.distanceUnit ||
-            expenseType
-                ?.distanceUnit ||
-            this.configuration
-                ?.defaultDistanceUnit ||
-            null;
-
-        const receiptNames =
-            item.receiptNames || [];
-
-        return {
-            ...item,
-
-            calculationMethod,
-
-            isAmount:
-                calculationMethod ===
-                METHOD_AMOUNT,
-
-            isDistance:
-                calculationMethod ===
-                METHOD_DISTANCE,
-
-            hasExpenseType:
-                Boolean(
-                    expenseType
-                ),
-
-            descriptionRequired:
-                Boolean(
-                    this.configuration
-                        ?.requireDescription ||
-                    expenseType
-                        ?.descriptionRequired
-                ),
-
-            receiptRequired:
-                item.receiptRequired ??
-                expenseType
-                    ?.receiptRequired ??
-                false,
-
-            receiptNames,
-
-            hasReceipts:
-                receiptNames.length > 0,
-
-            receiptSummary:
-                receiptNames.join(', '),
-
-            isReceiptUploadDisabled:
-                item.isPreparingReceiptUpload ||
-                !item.receiptUploadKey ||
-                Boolean(
-                    item.receiptUploadError
-                ),
-
-            maximumAmount,
-
-            hasMaximumAmount:
-                maximumAmount !==
+            expenseDate:
                 null,
 
-            unitRate,
+            description:
+                '',
 
-            hasUnitRate:
-                unitRate !== null,
+            expenseTypeCode:
+                null,
 
-            distanceUnit,
+            expenseTypeLabel:
+                '',
 
-            lineTotal:
-                this.toFiniteNumber(
-                    item.claimedAmount
-                )
+            calculationMethod:
+                null,
+
+            claimedAmount:
+                null,
+
+            distance:
+                null,
+
+            calculatedAmount:
+                null,
+
+            businessPurpose:
+                '',
+
+            unitRate:
+                null,
+
+            distanceUnit:
+                this.configuration
+                    ?.defaultDistanceUnit ||
+                '',
+
+            maximumAmount:
+                null,
+
+            typeDescriptionRequired:
+                false,
+
+            receiptRequired:
+                false,
+
+            receiptUploadKey:
+                null,
+
+            receiptUploaded:
+                false,
+
+            receiptNames:
+                [],
+
+            policyError:
+                null,
+
+            isPolicyLoading:
+                false,
+
+            policyRequestSequence:
+                0
         };
-    }
 
-    normalizeItems(items) {
-        const canDelete =
-            items.length > 1;
+        this.nextItemKey += 1;
 
-        return items.map(
-            (item, index) => ({
-                ...this.decorateItem(
-                    item
-                ),
-                sequence:
-                    index + 1,
-                canDelete
-            })
+        return this.decorateItem(
+            item
         );
     }
 
-    findExpenseType(
-        developerName
-    ) {
-        if (!developerName) {
-            return undefined;
+    async handleAddItem() {
+        const item =
+            this.createExpenseItem();
+
+        this.expenseItems = [
+            ...this.expenseItems,
+            item
+        ];
+
+        this.prepareReceiptUploadKey(
+            item.key
+        );
+    }
+
+    handleDeleteItem(event) {
+        const key =
+            Number(
+                event.currentTarget
+                    .dataset.key
+            );
+
+        if (
+            this.expenseItems.length <=
+            1
+        ) {
+            return;
         }
 
-        return (
-            this.configuration
-                ?.expenseTypes || []
-        ).find(
-            (expenseType) =>
-                expenseType
-                    .developerName ===
-                developerName
-        );
-    }
-
-    findItem(clientId) {
-        return this.items.find(
-            (item) =>
-                item.clientId ===
-                clientId
-        );
-    }
-
-    updateItem(
-        clientId,
-        changes
-    ) {
-        this.items =
-            this.normalizeItems(
-                this.items.map(
-                    (item) => {
-                        if (
-                            item.clientId ===
-                            clientId
-                        ) {
-                            return {
-                                ...item,
-                                ...changes
-                            };
-                        }
-
-                        return item;
-                    }
-                )
+        this.expenseItems =
+            this.expenseItems.filter(
+                (item) =>
+                    item.key !== key
             );
     }
 
-    handleClaimDescriptionChange(
-        event
-    ) {
-        this.claimDescription =
+    /*
+     * ---------------------------------------------------------------------
+     * Item input
+     * ---------------------------------------------------------------------
+     */
+
+    handleItemInputChange(event) {
+        const key =
+            Number(
+                event.target.dataset.key
+            );
+
+        const field =
+            event.target.dataset.field;
+
+        let value =
+            event.detail?.value ??
             event.target.value;
+
+        if (
+            field ===
+                'claimedAmount' ||
+            field ===
+                'distance'
+        ) {
+            value =
+                this.toNumberOrNull(
+                    value
+                );
+        }
+
+        this.updateItem(
+            key,
+            (item) => ({
+                ...item,
+                [field]:
+                    value
+            })
+        );
+
+        /*
+         * Distance reimbursement is calculated by Apex.
+         *
+         * Other ordinary input changes do not need a new policy request.
+         */
+        if (
+            field === 'distance'
+        ) {
+            const item =
+                this.findItem(
+                    key
+                );
+
+            if (
+                item
+                    ?.calculationMethod ===
+                CALCULATION_METHOD_DISTANCE
+            ) {
+                this.refreshPolicy(
+                    key
+                );
+            }
+        }
     }
 
-    async handleExpenseTypeChange(
-        event
-    ) {
-        const clientId =
-            event.target.dataset.id;
+    handleExpenseTypeChange(event) {
+        const key =
+            Number(
+                event.target.dataset.key
+            );
 
         const expenseTypeCode =
             event.detail.value;
@@ -408,233 +537,90 @@ export default class ExpenseClaimForm extends LightningElement {
                 expenseTypeCode
             );
 
-        const currentItem =
-            this.findItem(
-                clientId
-            );
-
-        const isDistance =
-            expenseType
-                ?.calculationMethod ===
-            METHOD_DISTANCE;
-
         this.updateItem(
-            clientId,
-            {
+            key,
+            (item) => ({
+                ...item,
+
                 expenseTypeCode,
+
+                expenseTypeLabel:
+                    expenseType?.label ||
+                    '',
 
                 calculationMethod:
                     expenseType
                         ?.calculationMethod ||
                     null,
 
-                claimedAmount: null,
-
-                distance:
-                    isDistance
-                        ? currentItem
-                              ?.distance
-                        : null,
+                unitRate:
+                    expenseType?.rate ??
+                    null,
 
                 distanceUnit:
-                    isDistance
-                        ? expenseType
-                              ?.distanceUnit ||
-                          this.configuration
-                              ?.defaultDistanceUnit ||
-                          null
-                        : null,
+                    expenseType
+                        ?.distanceUnit ||
+                    this.configuration
+                        ?.defaultDistanceUnit ||
+                    '',
 
-                unitRate:
-                    isDistance
-                        ? expenseType
-                              ?.rate ??
-                          null
-                        : null,
+                maximumAmount:
+                    expenseType
+                        ?.maximumAmount ??
+                    null,
 
                 receiptRequired:
+                    Boolean(
+                        expenseType
+                            ?.receiptRequired
+                    ),
+
+                typeDescriptionRequired:
+                    Boolean(
+                        expenseType
+                            ?.descriptionRequired
+                    ),
+
+                claimedAmount:
                     expenseType
-                        ?.receiptRequired ||
-                    false,
+                        ?.calculationMethod ===
+                    CALCULATION_METHOD_DISTANCE
+                        ? null
+                        : item
+                            .claimedAmount,
 
-                policyError: null
-            }
-        );
+                distance:
+                    expenseType
+                        ?.calculationMethod ===
+                    CALCULATION_METHOD_AMOUNT
+                        ? null
+                        : item.distance,
 
-        await this.refreshPolicy(
-            clientId
-        );
-    }
+                calculatedAmount:
+                    null,
 
-    async handleItemInputChange(
-        event
-    ) {
-        const clientId =
-            event.target.dataset.id;
-
-        const field =
-            event.target.dataset.field;
-
-        let value =
-            event.target.value;
-
-        if (
-            field ===
-                'claimedAmount' ||
-            field === 'distance'
-        ) {
-            value =
-                this.toNumberOrNull(
-                    value
-                );
-        }
-
-        this.updateItem(
-            clientId,
-            {
-                [field]: value,
-                policyError: null
-            }
-        );
-
-        const item =
-            this.findItem(
-                clientId
-            );
-
-        if (
-            field ===
-                'distance' &&
-            item?.isDistance &&
-            item.expenseTypeCode
-        ) {
-            await this.refreshPolicy(
-                clientId
-            );
-        }
-    }
-
-    async handleAddItem() {
-        const item =
-            this.createEmptyItem();
-
-        this.items =
-            this.normalizeItems([
-                ...this.items,
-                item
-            ]);
-
-        await this.prepareReceiptUploadKey(
-            item.clientId
-        );
-    }
-
-    handleDeleteItem(event) {
-        const clientId =
-            event.target.dataset.id;
-
-        this.items =
-            this.normalizeItems(
-                this.items.filter(
-                    (item) =>
-                        item.clientId !==
-                        clientId
-                )
-            );
-    }
-
-    async prepareReceiptUploadKey(
-        clientId
-    ) {
-        this.updateItem(
-            clientId,
-            {
-                isPreparingReceiptUpload:
-                    true,
-                receiptUploadError: null
-            }
-        );
-
-        try {
-            const receiptUploadKey =
-                await createReceiptUploadKey();
-
-            this.updateItem(
-                clientId,
-                {
-                    receiptUploadKey,
-                    isPreparingReceiptUpload:
-                        false,
-                    receiptUploadError:
-                        null
-                }
-            );
-        } catch (error) {
-            this.updateItem(
-                clientId,
-                {
-                    receiptUploadKey:
-                        null,
-                    isPreparingReceiptUpload:
-                        false,
-                    receiptUploadError:
-                        this.reduceError(
-                            error
-                        )
-                }
-            );
-        }
-    }
-
-    handleReceiptUploadFinished(
-        event
-    ) {
-        const clientId =
-            event.target.dataset.id;
-
-        const item =
-            this.findItem(
-                clientId
-            );
-
-        if (!item) {
-            return;
-        }
-
-        const uploadedNames =
-            event.detail.files.map(
-                (file) =>
-                    file.name
-            );
-
-        this.updateItem(
-            clientId,
-            {
-                receiptNames: [
-                    ...(item.receiptNames ||
-                        []),
-                    ...uploadedNames
-                ],
-                receiptUploadError:
+                policyError:
                     null
-            }
+            })
+        );
+
+        this.refreshPolicy(
+            key
         );
     }
 
-    async handleRetryReceiptUpload(
-        event
-    ) {
-        await this.prepareReceiptUploadKey(
-            event.target.dataset.id
-        );
-    }
+    /*
+     * ---------------------------------------------------------------------
+     * Policy
+     * ---------------------------------------------------------------------
+     */
 
     async refreshPolicy(
-        clientId
+        key
     ) {
         const item =
             this.findItem(
-                clientId
+                key
             );
 
         if (
@@ -644,158 +630,417 @@ export default class ExpenseClaimForm extends LightningElement {
             return;
         }
 
-        const policyRequestId =
-            ++this.policyRequestSequence;
+        const requestSequence =
+            item.policyRequestSequence +
+            1;
 
         this.updateItem(
-            clientId,
-            {
-                isCalculating: true,
-                policyRequestId,
-                policyError: null
-            }
+            key,
+            (currentItem) => ({
+                ...currentItem,
+
+                policyRequestSequence:
+                    requestSequence,
+
+                isPolicyLoading:
+                    true,
+
+                policyError:
+                    null
+            })
         );
 
         try {
-            const result =
-                await applyPolicy({
-                    itemDto:
-                        this.toServerItem(
-                            this.findItem(
-                                clientId
-                            )
+            const serverItem =
+                await this.applyPolicyOnServer(
+                    this.toServerItem(
+                        this.findItem(
+                            key
                         )
-                });
-
-            const latestItem =
-                this.findItem(
-                    clientId
+                    )
                 );
 
+            const currentItem =
+                this.findItem(
+                    key
+                );
+
+            /*
+             * A slower earlier request must not overwrite a newer value.
+             */
             if (
-                !latestItem ||
-                latestItem
-                    .policyRequestId !==
-                    policyRequestId
+                !currentItem ||
+                currentItem
+                    .policyRequestSequence !==
+                    requestSequence
             ) {
                 return;
             }
 
             this.updateItem(
-                clientId,
-                {
-                    ...result,
-
-                    clientId,
-                    policyRequestId,
-
-                    receiptUploadKey:
-                        latestItem
-                            .receiptUploadKey,
-
-                    receiptNames:
-                        latestItem
-                            .receiptNames,
-
-                    receiptUploadError:
-                        latestItem
-                            .receiptUploadError,
-
-                    isPreparingReceiptUpload:
-                        latestItem
-                            .isPreparingReceiptUpload,
-
-                    isCalculating:
-                        false,
-
-                    policyError: null
-                }
+                key,
+                (existingItem) =>
+                    this.applyPolicyResponse(
+                        existingItem,
+                        serverItem
+                    )
             );
         } catch (error) {
-            const latestItem =
+            const currentItem =
                 this.findItem(
-                    clientId
+                    key
                 );
 
             if (
-                !latestItem ||
-                latestItem
-                    .policyRequestId !==
-                    policyRequestId
+                !currentItem ||
+                currentItem
+                    .policyRequestSequence !==
+                    requestSequence
             ) {
                 return;
             }
 
             this.updateItem(
-                clientId,
-                {
-                    isCalculating:
+                key,
+                (existingItem) => ({
+                    ...existingItem,
+
+                    isPolicyLoading:
                         false,
+
                     policyError:
                         this.reduceError(
                             error
                         )
-                }
+                })
             );
         }
     }
 
-    async handleSubmit() {
+    applyPolicyResponse(
+        existingItem,
+        serverItem
+    ) {
+        const response =
+            serverItem || {};
+
+        const calculationMethod =
+            response
+                .calculationMethod ||
+            existingItem
+                .calculationMethod;
+
+        let calculatedAmount =
+            existingItem
+                .calculatedAmount;
+
         if (
-            this.hasPolicyCalculation
+            calculationMethod ===
+            CALCULATION_METHOD_DISTANCE
         ) {
-            this.showToast(
-                'Please wait',
-                'An expense amount is still being calculated.',
-                'warning'
+            calculatedAmount =
+                this.toNumberOrNull(
+                    response
+                        .calculatedAmount ??
+                    response
+                        .claimedAmount
+                );
+        } else {
+            calculatedAmount =
+                null;
+        }
+
+        return {
+            ...existingItem,
+
+            expenseTypeLabel:
+                response
+                    .expenseTypeLabel ||
+                existingItem
+                    .expenseTypeLabel,
+
+            calculationMethod,
+
+            unitRate:
+                response.unitRate ??
+                existingItem.unitRate,
+
+            distanceUnit:
+                response.distanceUnit ??
+                existingItem
+                    .distanceUnit,
+
+            maximumAmount:
+                response
+                    .maximumAmount ??
+                existingItem
+                    .maximumAmount,
+
+            receiptRequired:
+                response
+                    .receiptRequired ===
+                    undefined
+                    ? existingItem
+                        .receiptRequired
+                    : Boolean(
+                        response
+                            .receiptRequired
+                    ),
+
+            typeDescriptionRequired:
+                response
+                    .descriptionRequired ===
+                    undefined
+                    ? existingItem
+                        .typeDescriptionRequired
+                    : Boolean(
+                        response
+                            .descriptionRequired
+                    ),
+
+            calculatedAmount,
+
+            policyError:
+                null,
+
+            isPolicyLoading:
+                false
+        };
+    }
+
+    /*
+     * ---------------------------------------------------------------------
+     * Receipt upload
+     * ---------------------------------------------------------------------
+     */
+
+    async prepareReceiptUploadKey(
+        key
+    ) {
+        const item =
+            this.findItem(
+                key
             );
+
+        if (
+            !item ||
+            item.receiptUploadKey
+        ) {
+            return;
+        }
+
+        try {
+            const receiptUploadKey =
+                await this
+                    .createReceiptUploadKeyOnServer();
+
+            this.updateItem(
+                key,
+                (currentItem) => ({
+                    ...currentItem,
+                    receiptUploadKey
+                })
+            );
+        } catch (error) {
+            this.updateItem(
+                key,
+                (currentItem) => ({
+                    ...currentItem,
+
+                    policyError:
+                        this.reduceError(
+                            error
+                        )
+                })
+            );
+        }
+    }
+
+    handleReceiptUploadFinished(
+        event
+    ) {
+        const key =
+            Number(
+                event.target.dataset.key
+            );
+
+        const uploadedFiles =
+            event.detail?.files ||
+            [];
+
+        const receiptNames =
+            uploadedFiles
+                .map(
+                    (file) =>
+                        file.name
+                )
+                .filter(
+                    Boolean
+                );
+
+        this.updateItem(
+            key,
+            (item) => ({
+                ...item,
+
+                receiptUploaded:
+                    receiptNames.length >
+                    0,
+
+                receiptNames
+            })
+        );
+    }
+
+    /*
+     * ---------------------------------------------------------------------
+     * Item decoration
+     * ---------------------------------------------------------------------
+     */
+
+    decorateItem(item) {
+        const calculationMethod =
+            item.calculationMethod;
+
+        const receiptNames =
+            Array.isArray(
+                item.receiptNames
+            )
+                ? item.receiptNames
+                : [];
+
+        const descriptionRequired =
+            Boolean(
+                this.configuration
+                    ?.requireDescription
+            ) ||
+            Boolean(
+                item
+                    .typeDescriptionRequired
+            );
+
+        return {
+            ...item,
+
+            receiptNames,
+
+            receiptSummary:
+                receiptNames.join(
+                    ', '
+                ),
+
+            hasReceipts:
+                receiptNames.length >
+                0,
+
+            descriptionRequired,
+
+            isAmount:
+                calculationMethod ===
+                CALCULATION_METHOD_AMOUNT,
+
+            isDistance:
+                calculationMethod ===
+                CALCULATION_METHOD_DISTANCE,
+
+            /*
+             * The row always receives an upload key. The uploader itself is
+             * shown once an Expense Type has been selected.
+             */
+            showReceiptUpload:
+                Boolean(
+                    item.expenseTypeCode &&
+                    item.receiptUploadKey
+                ),
+            
+            receiptUploadDisabled:
+                false,
+        };
+    }
+
+    itemAmount(item) {
+        if (
+            item.calculationMethod ===
+            CALCULATION_METHOD_DISTANCE
+        ) {
+            return (
+                Number(
+                    item
+                        .calculatedAmount
+                ) ||
+                0
+            );
+        }
+
+        return (
+            Number(
+                item.claimedAmount
+            ) ||
+            0
+        );
+    }
+
+    /*
+     * ---------------------------------------------------------------------
+     * Submission
+     * ---------------------------------------------------------------------
+     */
+
+    async handleSubmit() {
+        this.submissionError =
+            undefined;
+
+        if (
+            !this.validateForm()
+        ) {
             return;
         }
 
         if (
-            !this.validateInputs()
+            this.hasPendingPolicyRequests
         ) {
-            this.showToast(
-                'Check the form',
-                'Complete the required fields before submitting.',
-                'error'
-            );
+            this.submissionError =
+                'Please wait for expense calculations to finish.';
+
             return;
         }
 
         if (
             this.hasPolicyErrors
         ) {
-            this.showToast(
-                'Check the expenses',
-                'Resolve the expense policy errors before submitting.',
-                'error'
-            );
+            this.submissionError =
+                'Resolve the expense item errors before submitting the claim.';
+
             return;
         }
 
         if (
             this.hasMissingRequiredReceipts
         ) {
-            this.showToast(
-                'Receipt required',
-                'Upload the required receipts before submitting.',
-                'error'
-            );
+            this.submissionError =
+                'Upload all required receipts before submitting the claim.';
+
             return;
         }
 
-        this.isSubmitting = true;
+        this.isSubmitting =
+            true;
 
         try {
+            /*
+             * Only claimant-controlled values are included in the request.
+             *
+             * Claimant identity and all policy-derived values are rebuilt
+             * server-side.
+             */
             const request = {
                 description:
-                    this.claimDescription
-                        ?.trim() ||
-                    null,
+                    this.normalizeText(
+                        this.claimDescription
+                    ),
 
                 items:
-                    this.items.map(
+                    this.expenseItems.map(
                         (item) =>
                             this.toServerItem(
                                 item
@@ -803,108 +1048,260 @@ export default class ExpenseClaimForm extends LightningElement {
                     )
             };
 
-            this.submissionResult =
-                await submitClaim({
+            this.submittedClaim =
+                await this.submitClaimToServer(
                     request
-                });
+                );
 
-            this.showToast(
-                'Expense claim submitted',
-                `Claim ${this.successReference} was submitted successfully.`,
-                'success'
+            this.dispatchEvent(
+                new ShowToastEvent({
+                    title:
+                        'Expense claim submitted',
+
+                    message:
+                        'Your expense claim has been submitted successfully.',
+
+                    variant:
+                        'success'
+                })
             );
         } catch (error) {
-            this.showToast(
-                'Unable to submit claim',
+            this.submissionError =
                 this.reduceError(
                     error
-                ),
-                'error'
-            );
+                );
         } finally {
             this.isSubmitting =
                 false;
         }
     }
 
-    async handleNewClaim() {
-        this.submissionResult =
-            undefined;
+    /*
+     * A guest access token is single-use.
+     *
+     * Starting a second guest claim therefore returns to the verification
+     * wrapper instead of attempting to reuse the token.
+     */
+    handleNewClaim() {
+        if (this.guestMode) {
+            this.dispatchEvent(
+                new CustomEvent(
+                    'reauthenticate'
+                )
+            );
 
+            return;
+        }
+
+        this.resetForm();
+    }
+
+    async resetForm() {
         this.claimDescription =
             '';
 
+        this.submissionError =
+            undefined;
+
+        this.submittedClaim =
+            undefined;
+
         const item =
-            this.createEmptyItem();
+            this.createExpenseItem();
 
-        this.items =
-            this.normalizeItems([
-                item
-            ]);
+        this.expenseItems = [
+            item
+        ];
 
-        await this.prepareReceiptUploadKey(
-            item.clientId
+        this.prepareReceiptUploadKey(
+            item.key
         );
     }
 
-    handleRetry() {
-        this.loadConfiguration();
+    /*
+     * ---------------------------------------------------------------------
+     * Claim input
+     * ---------------------------------------------------------------------
+     */
+
+    handleClaimDescriptionChange(
+        event
+    ) {
+        this.claimDescription =
+            event.target.value;
     }
 
-    validateInputs() {
-        const inputs =
-            this.template
+    /*
+     * ---------------------------------------------------------------------
+     * Validation
+     * ---------------------------------------------------------------------
+     */
+
+    validateForm() {
+        const inputs = [
+            ...this.template
                 .querySelectorAll(
                     'lightning-input, lightning-combobox, lightning-textarea'
+                )
+        ];
+
+        return inputs.reduce(
+            (
+                isValid,
+                input
+            ) => {
+                if (
+                    typeof input
+                        .reportValidity ===
+                    'function'
+                ) {
+                    input.reportValidity();
+                }
+
+                const inputValid =
+                    typeof input
+                        .checkValidity ===
+                    'function'
+                        ? input
+                            .checkValidity()
+                        : true;
+
+                return (
+                    isValid &&
+                    inputValid
                 );
-
-        let valid = true;
-
-        inputs.forEach(
-            (input) => {
-                input.reportValidity();
-
-                valid =
-                    input.checkValidity() &&
-                    valid;
-            }
+            },
+            true
         );
-
-        return valid;
     }
 
+    /*
+     * ---------------------------------------------------------------------
+     * Request mapping
+     * ---------------------------------------------------------------------
+     */
+
     toServerItem(item) {
+        const isDistance =
+            item.calculationMethod ===
+            CALCULATION_METHOD_DISTANCE;
+
         return {
             expenseDate:
                 item.expenseDate ||
                 null,
 
             description:
-                item.description
-                    ?.trim() ||
-                null,
+                this.normalizeText(
+                    item.description
+                ),
 
             expenseTypeCode:
                 item.expenseTypeCode ||
                 null,
 
+            /*
+             * A distance reimbursement amount is always calculated by Apex.
+             */
             claimedAmount:
-                item.claimedAmount ??
-                null,
+                isDistance
+                    ? null
+                    : this.toNumberOrNull(
+                        item
+                            .claimedAmount
+                    ),
 
             distance:
-                item.distance ??
-                null,
+                isDistance
+                    ? this.toNumberOrNull(
+                        item.distance
+                    )
+                    : null,
 
             businessPurpose:
-                item.businessPurpose
-                    ?.trim() ||
-                null,
+                this.normalizeText(
+                    item
+                        .businessPurpose
+                ),
 
             receiptUploadKey:
-                item.receiptUploadKey ||
+                item
+                    .receiptUploadKey ||
                 null
         };
+    }
+
+    /*
+     * ---------------------------------------------------------------------
+     * Collection helpers
+     * ---------------------------------------------------------------------
+     */
+
+    findItem(key) {
+        return this.expenseItems.find(
+            (item) =>
+                item.key === key
+        );
+    }
+
+    findExpenseType(
+        developerName
+    ) {
+        return (
+            this.configuration
+                ?.expenseTypes ||
+            []
+        ).find(
+            (expenseType) =>
+                expenseType
+                    .developerName ===
+                developerName
+        );
+    }
+
+    updateItem(
+        key,
+        updater
+    ) {
+        this.expenseItems =
+            this.expenseItems.map(
+                (item) => {
+                    if (
+                        item.key !== key
+                    ) {
+                        return item;
+                    }
+
+                    return this.decorateItem(
+                        updater(
+                            item
+                        )
+                    );
+                }
+            );
+    }
+
+    /*
+     * ---------------------------------------------------------------------
+     * Value helpers
+     * ---------------------------------------------------------------------
+     */
+
+    normalizeText(value) {
+        if (
+            value === null ||
+            value === undefined
+        ) {
+            return null;
+        }
+
+        const normalized =
+            String(
+                value
+            ).trim();
+
+        return normalized ||
+            null;
     }
 
     toNumberOrNull(value) {
@@ -916,26 +1313,23 @@ export default class ExpenseClaimForm extends LightningElement {
             return null;
         }
 
-        const parsed =
-            Number(value);
+        const numericValue =
+            Number(
+                value
+            );
 
         return Number.isNaN(
-            parsed
+            numericValue
         )
             ? null
-            : parsed;
+            : numericValue;
     }
 
-    toFiniteNumber(value) {
-        const numberValue =
-            Number(value);
-
-        return Number.isFinite(
-            numberValue
-        )
-            ? numberValue
-            : 0;
-    }
+    /*
+     * ---------------------------------------------------------------------
+     * Error handling
+     * ---------------------------------------------------------------------
+     */
 
     reduceError(error) {
         if (
@@ -948,7 +1342,12 @@ export default class ExpenseClaimForm extends LightningElement {
                     (entry) =>
                         entry.message
                 )
-                .join(', ');
+                .filter(
+                    Boolean
+                )
+                .join(
+                    ', '
+                );
         }
 
         if (
@@ -957,24 +1356,12 @@ export default class ExpenseClaimForm extends LightningElement {
             return error.body.message;
         }
 
-        if (error?.message) {
+        if (
+            error?.message
+        ) {
             return error.message;
         }
 
         return 'An unexpected error occurred.';
-    }
-
-    showToast(
-        title,
-        message,
-        variant
-    ) {
-        this.dispatchEvent(
-            new ShowToastEvent({
-                title,
-                message,
-                variant
-            })
-        );
     }
 }

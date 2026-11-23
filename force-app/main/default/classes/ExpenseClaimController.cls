@@ -6,8 +6,6 @@
  */
 public with sharing class ExpenseClaimController {
 
-    private static final String STATUS_DRAFT = 'Draft';
-
     /**
      * Returns claimant information, application settings, and active Expense Types.
      *
@@ -96,7 +94,6 @@ public with sharing class ExpenseClaimController {
      * @param request Expense Claim submission request.
      * @return Submission result.
      */
-
     @AuraEnabled
     public static ExpenseClaimResponseDto submitClaim(
         ExpenseClaimRequestDto request
@@ -108,23 +105,23 @@ public with sharing class ExpenseClaimController {
         } catch (
             ExpenseClaimService.ExpenseClaimException exceptionValue
         ) {
-            throw new AuraHandledException(
+            throw clientException(
                 exceptionValue.getMessage()
             );
         } catch (
             ExpensePolicyService.ExpensePolicyException exceptionValue
         ) {
-            throw new AuraHandledException(
+            throw clientException(
                 exceptionValue.getMessage()
             );
         } catch (
             ExpenseReceiptService.ExpenseReceiptException exceptionValue
         ) {
-            throw new AuraHandledException(
+            throw clientException(
                 exceptionValue.getMessage()
             );
         } catch (Exception exceptionValue) {
-            throw new AuraHandledException(
+            throw clientException(
                 'The expense claim could not be submitted.'
             );
         }
@@ -151,33 +148,24 @@ public with sharing class ExpenseClaimController {
     ) {
         if (request == null) {
             throw new ExpenseClaimService.ExpenseClaimException(
-                'An Expense Claim request must be provided.'
+                'Expense claim request is required.'
             );
         }
     }
 
     /**
-     * Creates a Lightning-safe handled exception.
+     * Executes Expense Claim submission after controller-level
+     * exception handling has been established.
      *
-     * @param message User-safe error message.
-     * @return AuraHandledException.
+     * @param request Expense Claim submission request.
+     * @return Submission result.
      */
-    private static AuraHandledException clientException(
-        String message
-    ) {
-        return new AuraHandledException(
-            message
-        );
-    }
-
     private static ExpenseClaimResponseDto submitClaimInternal(
         ExpenseClaimRequestDto request
     ) {
-        if (request == null) {
-            throw new ExpenseClaimService.ExpenseClaimException(
-                    'Expense claim request is required.'
-                );
-        }
+        requireRequest(
+            request
+        );
 
         Expense_Claim__c claim =
             ExpenseClaimDtoMapper.toExpenseClaim(
@@ -191,39 +179,64 @@ public with sharing class ExpenseClaimController {
 
         claim =
             ExpenseClaimPersistenceService.sanitizeClaimInput(
-                    claim
-                );
+                claim
+            );
 
         items =
             ExpenseClaimPersistenceService.sanitizeItemInput(
-                    items
-                );
+                items
+            );
 
-        claim.Status__c = 'Draft';
+        claim.Status__c =
+            'Draft';
 
         ExpenseClaimService.prepareForSubmission(
-                claim,
-                items
-            );
+            claim,
+            items
+        );
 
         ExpenseReceiptService.validateReceipts(
-                request.items,
-                items
-            );
+            request.items,
+            items
+        );
 
         ExpenseClaimPersistenceService.persistSubmission(
-                claim,
-                items
-            );
+            claim,
+            items
+        );
 
         ExpenseReceiptService.linkReceipts(
-                request.items,
-                items
-            );
+            request.items,
+            items
+        );
 
         return ExpenseClaimDtoMapper.toResponse(
-                claim,
-                items
+            claim,
+            items
+        );
+    }
+
+    /**
+     * Creates a Lightning-safe handled exception.
+     *
+     * Setting the message explicitly ensures that Apex tests receive
+     * the intended domain error instead of only "Script-thrown exception."
+     *
+     * @param message User-safe error message.
+     * @return AuraHandledException containing the supplied message.
+     */
+    private static AuraHandledException clientException(
+        String message
+    ) {
+        AuraHandledException exceptionValue =
+            new AuraHandledException(
+                message
             );
+
+        exceptionValue.setMessage(
+            message
+        );
+
+        return exceptionValue;
     }
 }

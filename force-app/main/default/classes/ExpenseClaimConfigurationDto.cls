@@ -5,13 +5,13 @@
 public class ExpenseClaimConfigurationDto {
 
     /**
-     * Current authenticated claimant name.
+     * Current claimant name.
      */
     @AuraEnabled
     public String claimantName { get; set; }
 
     /**
-     * Current authenticated claimant email address.
+     * Current claimant email address.
      */
     @AuraEnabled
     public String claimantEmail { get; set; }

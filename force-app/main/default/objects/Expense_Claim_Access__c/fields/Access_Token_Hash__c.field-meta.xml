@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Access_Token_Hash__c</fullName>
+    <description>
+        Stores a SHA-256 hash of the high-entropy access token issued after successful email verification. The browser receives the original token while Salesforce stores only its hash, allowing later guest requests to be authenticated without persisting the usable credential.
+    </description>
+    <externalId>true</externalId>
+    <inlineHelpText>
+        Generated after successful verification. Never place the original browser access token in this field.
+    </inlineHelpText>
+    <label>Access Token Hash</label>
+    <length>64</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>true</unique>
+</CustomField>
